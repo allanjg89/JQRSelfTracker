@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy
 import os
 import difflib
-
+# testing my access to github...
 #Globals============================================
 
 debug = False
