@@ -1,0 +1,10 @@
+
+Line Velocity:	Mean = 7.001	STD = 4.824
+Comp Velocity:	Mean = 21.382	STD = 3.862
+
+
+         NAME          LINE ITEM VELOCITY  COMP PROGRESS VELOCITY
+        Test                3.5294               21.085       
+       Test2                5.0617               18.367       
+       Test3                15.302               27.782       
+       Test4                4.1088               18.294       
