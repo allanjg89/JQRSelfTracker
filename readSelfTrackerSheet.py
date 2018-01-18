@@ -1,9 +1,10 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-#import time
+import dateutil.parser
 import datetime
 import matplotlib.pyplot as plt
 import numpy
+import os
 
 #Globals============================================
 
@@ -57,23 +58,24 @@ class TraineeRecord:
         if date == '' or date == None:
             date = '1/1/2010'
 
-        self.date = datetime.datetime.strptime(date, '%m/%d/%Y')
+        self.date = dateutil.parser.parse(date)
         self.day = day
         self.valid = True
         self.section = section
         self.completedComp = completedComp
 
-        if(numberOfLineItems == '' or numberOfLineItems == None):
-            self.numberOfLineItems = 0
-        else:
+        try:
             self.numberOfLineItems = int(numberOfLineItems)
+        except:
+            self.numberOfLineItems = 0
+
 
         self.compentancy = compentancy
 
-        if (compentancyPercentage == '' or compentancyPercentage == None):
-            self.compentancyPercentage= 0
-        else:
+        try:
             self.compentancyPercentage = int(compentancyPercentage)
+        except:
+            self.compentancyPercentage = 0
 
 class Trainee:
     def __init__(self, worksheet):
@@ -84,6 +86,9 @@ class Trainee:
         self.compIntercept = 0
         self.minDate = None
         self.maxDate = None
+        self.numRecords = 0;
+        self.numberOfLineItemsCompleted = 0
+        self.numberOfCompsCompleted = 0
 
         dates = worksheet.col_values(1)[1:-1]
         days = worksheet.col_values(2)[1:-1]
@@ -101,7 +106,11 @@ class Trainee:
                                        compentancies[index], compentancyPercentage[index],
                                        'y' if completedComp[index].lower() == 'y' else 'n')
 
-            if self.minDate == None:
+            self.numberOfLineItemsCompleted = self.numberOfLineItemsCompleted + currRecord.numberOfLineItems
+            if currRecord.completedComp.lower() == 'y':
+                self.numberOfCompsCompleted = self.numberOfCompsCompleted+1
+
+        if self.minDate == None:
                 self.minDate = currRecord.date
             else:
                 self.minDate = min(self.minDate, currRecord.date)
@@ -111,6 +120,7 @@ class Trainee:
                 self.maxDate = max(self.maxDate, currRecord.date)
 
             self.records.append(currRecord)
+            self.numRecords = self.numRecords +1
 
             index = index+1
     def setLineVel(self, lineVel):
@@ -137,14 +147,25 @@ class Trainee:
         self.compIntercept = coeff[1]
         return dates, compPercentages, xvals
 
+
+
 #Functions=============================================================
 def RetrieveSpreadSheet(jsonFile = 'JQR Self Progress-7a72c0d519ad.json', spreadSheetName = "JQR Self Progress"):
     # use creds to create a client to interact with the Google Drive API
     #global sheet
+    if not os.path.exists(jsonFile):
+        print("%s could not be located.\n" % jsonFile)
+        exit(-1)
+
     scope = ['https://spreadsheets.google.com/feeds']
-    creds = ServiceAccountCredentials.from_json_keyfile_name(jsonFile, scope)
-    client = gspread.authorize(creds)
-    sheet = client.open(spreadSheetName)
+    try:
+        creds = ServiceAccountCredentials.from_json_keyfile_name(jsonFile, scope)
+        client = gspread.authorize(creds)
+        sheet = client.open(spreadSheetName)
+    except:
+        print("Could not retrive Spread Sheet %s\n"%spreadSheetName)
+        exit(-1)
+
     return sheet
 
 
@@ -209,7 +230,9 @@ def GetLatestComp(trainee):
 
     for index in range(len(trainee.records)-1, -1, -1):
         if trainee.records[index].valid:
-            return trainee.records[index].compentancy
+            currComp = trainee.records[index].compentancy
+            if currComp != '' or currComp != None or currComp != ' ':
+                return currComp
 
     return None
 
@@ -217,11 +240,11 @@ def GetLatestComp(trainee):
 def CreateTableOfVelocities(file=None):
     global Trainees
 
-    formatStr = '{:^20} {:^20} {:^20}\n'
+    formatStr = '{:^20} {:^20} {:^20} {:^20} {:^20}\n'
 
     table = []
 
-    table.append(formatStr.format('NAME', 'LINE ITEM VELOCITY', 'COMP PROGRESS VELOCITY'))
+    table.append(formatStr.format('NAME', 'LINE ITEM VELOCITY', 'COMP PROGRESS VELOCITY', 'LINE ITEMS COMPLETED', 'COMPS COMPLETED'))
 
     lineVelocities = []
     compVelocities = []
@@ -233,7 +256,8 @@ def CreateTableOfVelocities(file=None):
         lineVelStr = str(trainee.lineVel)
         compVelStr = str(trainee.compVel)
         table.append(formatStr.format(trainee.name, lineVelStr[0:min(6, len(lineVelStr))],
-                                      compVelStr[0:min(6, len(compVelStr))]))
+                                      compVelStr[0:min(6, len(compVelStr))], trainee.numberOfLineItemsCompleted,
+                                      trainee.numberOfCompsCompleted))
 
     statString = '\nLine Velocity:\tMean = {:.3f}\tSTD = {:.3f}\nComp Velocity:\tMean = {:.3f}\tSTD = {:.3f}\n\n\n '.format(
         numpy.mean(numpy.array(lineVelocities)),
@@ -357,6 +381,7 @@ def GetListOfTraineeObjects():
     for currWorkSheet in workSheets:
         # todo check that trainee is in list
         if currWorkSheet._title.lower() in desiredTrainees:
+            print("Creating Object For %s\n" % currWorkSheet._title.lower())
             currTrainee = Trainee(currWorkSheet)
             Trainees.append(currTrainee)
 
@@ -391,7 +416,11 @@ def FilterTrainee(trainee, lowerDate, upperDate):
         if record.date <= upperDate and record.date >= lowerDate:
             record.valid = True
         else:
+            trainee.numRecords = trainee.numRecords - 1
             record.valid = False
+            trainee.numberOfLineItemsCompleted = trainee.numberOfLineItemsCompleted - record.numberOfLineItems
+            if record.completedComp.lower() == 'y':
+                trainee.numberOfCompsCompleted = trainee.numberOfCompsCompleted - 1
 
         #filteredRecords.append(record)
 
@@ -418,14 +447,14 @@ def MakePlots():
 
     lineItemFigure = plt.figure("lineItemFigure", figsize=(18, 16))
 
-    plt.xlabel('Date', fontsize=16)
+    plt.xlabel('Arbritrary Days', fontsize=16)
     plt.ylabel('Number Of Line Items', fontsize=16)
     plt.title('Line Item Velocity ' + minDate.strftime("%Y-%m-%d") +
               ' to ' + maxDate.strftime("%Y-%m-%d"), fontsize=20)
 
     CompVelFigure = plt.figure("CompVelFigure", figsize=(18, 16))
 
-    plt.xlabel('Date', fontsize=16)
+    plt.xlabel('Arbritrary Days', fontsize=16)
     plt.ylabel('Competency Progress Percentage', fontsize=16)
     plt.title('Competency Progress Velocity ' + minDate.strftime("%Y-%m-%d") +
               ' to ' + maxDate.strftime("%Y-%m-%d"), fontsize=20)
@@ -451,7 +480,7 @@ def main():
     # Getting the spread sheet from google drive
     global sheet
     sheet = RetrieveSpreadSheet(spreadSheetName="Testing")
-    SetUp()
+    SetUp(sheet)
     GetListOfTraineeObjects()
     FilterTraineesDateRanges()
     MakePlots()
