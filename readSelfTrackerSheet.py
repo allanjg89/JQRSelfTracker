@@ -102,27 +102,29 @@ class Trainee:
         self.records = []
         for date in dates:
 
-            currRecord = TraineeRecord(date, days[index], sections[index], numberOfLineItems[index],
-                                       compentancies[index], compentancyPercentage[index],
-                                       'y' if completedComp[index].lower() == 'y' else 'n')
+            if date != None and date != '' and  date != ' ':
+                currRecord = TraineeRecord(date, days[index], sections[index], numberOfLineItems[index],
+                                           compentancies[index], compentancyPercentage[index],
+                                           'y' if completedComp[index].lower() == 'y' else 'n')
 
-            self.numberOfLineItemsCompleted = self.numberOfLineItemsCompleted + currRecord.numberOfLineItems
-            if currRecord.completedComp.lower() == 'y':
-                self.numberOfCompsCompleted = self.numberOfCompsCompleted+1
+                self.numberOfLineItemsCompleted = self.numberOfLineItemsCompleted + currRecord.numberOfLineItems
+                if currRecord.completedComp.lower() == 'y':
+                    self.numberOfCompsCompleted = self.numberOfCompsCompleted+1
 
-        if self.minDate == None:
-                self.minDate = currRecord.date
-            else:
-                self.minDate = min(self.minDate, currRecord.date)
-            if self.maxDate == None:
-                self.maxDate = currRecord.date
-            else:
-                self.maxDate = max(self.maxDate, currRecord.date)
+                if self.minDate == None:
+                        self.minDate = currRecord.date
+                else:
+                    self.minDate = min(self.minDate, currRecord.date)
+                if self.maxDate == None:
+                    self.maxDate = currRecord.date
+                else:
+                    self.maxDate = max(self.maxDate, currRecord.date)
 
-            self.records.append(currRecord)
-            self.numRecords = self.numRecords +1
+                self.records.append(currRecord)
+                self.numRecords = self.numRecords +1
 
             index = index+1
+
     def setLineVel(self, lineVel):
         self.lineVel = lineVel
 
@@ -148,8 +150,165 @@ class Trainee:
         return dates, compPercentages, xvals
 
 
+class TraineeCounts:
+    validCCompNames = ['C1', 'C2', 'C3', 'C4']
+    ValidPyCompNames = ['Py1', 'Py2']
+    ValidAsmCommpNames = ['Asm1', 'Asm2', 'Asm3']
+    ValidCapNames = ['Cap']
 
-#Functions=============================================================
+    cComps = 'C Comps'
+    pyComps = 'Python \nComps'
+    asmComp = 'Assembly \nComps'
+    capProj = 'Capstone \nProject'
+
+    def __init__(self, Trainee, HistoricSheet=None):
+        self.name = Trainee.name
+
+        self.traineeComps = {TraineeCounts.cComps: 0,
+                             TraineeCounts.pyComps: 0,
+                             TraineeCounts.asmComp: 0,
+                             TraineeCounts.capProj: 0}
+
+        self.historicalComps = {TraineeCounts.cComps: 0,
+                                TraineeCounts.pyComps: 0,
+                                TraineeCounts.asmComp: 0,
+                                TraineeCounts.capProj: 0}
+
+        self.traineeSections = {'100': 0,
+                                '101': 0,
+                                '200': 0,
+                                '201': 0,
+                                '202': 0,
+                                # '203':0,
+                                '204': 0,
+                                'Debug': 0}  # Same Row as 203
+
+        self.historicSections = {'100': 0,
+                                 '101': 0,
+                                 '200': 0,
+                                 '201': 0,
+                                 '202': 0,
+                                 # '203':0,
+                                 '204': 0,
+                                 'Debug': 0}  # Same Row as 203
+
+        self.historicCells = None
+        self.targetCells = None
+
+        for record in Trainee.records:
+            if record.section != '' and record.section != None and record.section != ' ':
+                self.traineeSections[record.section] = self.traineeSections[record.section] + record.numberOfLineItems
+                if record.completedComp == 'y':
+                    currComp = self.__CurrComp(record)
+                    if currComp != 'err':
+                        self.traineeComps[currComp] = self.traineeComps[currComp] + 1
+
+        if HistoricSheet != None:
+            HistoricSheet = HistoricSheet.worksheets()[0]
+            self.historicCells = HistoricSheet.get_all_values()
+            self.UpdateHistoricCounts(HistoricSheet, self.historicSections)
+            self.UpdateHistoricCounts(HistoricSheet, self.historicalComps)
+
+    def __FindNameCell(self, sheet):
+
+        try:
+            return sheet.find(self.name)
+        except:
+            print("%s not present in Historical Sheet.\n" % self.name)
+
+        return None
+
+    def UpdateHistoricCounts(self, sheet, dictionary):
+        nameCellHistorical = TraineeCounts.findPositionOfCell(self.name, self.historicCells)
+
+        if nameCellHistorical[0] == -1:
+            print("Could not find %s in historical sheet.\n" % self.name)
+            return
+
+        tempCellKey = None
+        tempCellVal = None
+
+        for key in dictionary.keys():
+
+            tempCellKey = TraineeCounts.findPositionOfCell(key, self.historicCells)
+
+            if tempCellKey[0] == -1:
+                print("%s not found in historic sheet.\n" % key)
+                continue
+
+            tempCellVal = sheet.cell(nameCellHistorical[0], tempCellKey[1])
+            value = ''.join(c for c in tempCellVal.value if c.isalnum())
+            # print("key: %s\tvalue: %s"%(key,tempCellVal.value))
+            if value == '' or value == None:
+                value = '0'
+
+            dictionary[key] = int(value)
+
+    def UpdateAllHistoricCounts(self, sheet):
+        UpdateHistoricCounts(sheet, self.historicSections)
+        UpdateHistoricCounts(sheet, self.historicalComps)
+
+    def UpdateJQRTracker(self, TargetSheet):
+
+        TargetSheet = TargetSheet.worksheets()[0]
+        self.targetCells = TargetSheet.get_all_values()
+
+        nameCellTarget = TraineeCounts.findPositionOfCell(self.name, self.targetCells)
+
+        if nameCellTarget[0] == -1:
+            print("Could not find %s in historical sheet.\n" % self.name)
+            return
+
+        tempCellKey = None
+        for key in self.traineeSections.keys():
+
+            tempCellKey = TraineeCounts.findPositionOfCell(key, self.targetCells)
+            if tempCellKey[0] == -1:
+                print("%s not found in target sheet.\n" % key)
+                continue
+
+            TargetSheet.update_cell(nameCellTarget[0], tempCellKey[1],
+                                    self.traineeSections[key] + self.historicSections[key])
+
+        for key in self.traineeComps.keys():
+
+            tempCellKey = TraineeCounts.findPositionOfCell(key, self.targetCells)
+            if tempCellKey[0] == -1:
+                print("%s not found in target sheet.\n" % key)
+                continue
+
+            TargetSheet.update_cell(nameCellTarget[0], tempCellKey[1],
+                                    self.traineeComps[key] + self.historicalComps[key])
+
+    @staticmethod
+    def findPositionOfCell(value, cells):
+        row = 0
+        col = 0
+        for l in cells:
+            col = 0
+            for val in l:
+                if ''.join(c for c in value if c.isalnum()) == ''.join(c for c in val if c.isalnum()):
+                    return (row + 1, col + 1)
+                col = col + 1
+            row = row + 1
+
+        return (-1, -1)
+
+    def __CurrComp(self, record):
+
+        if record.compentancy in TraineeCounts.validCCompNames:
+            return TraineeCounts.cComps
+        if record.compentancy in TraineeCounts.validCCompNames:
+            return TraineeCounts.pyComps
+        if record.compentancy in TraineeCounts.validCCompNames:
+            return TraineeCounts.asmComp
+        if record.compentancy in TraineeCounts.validCCompNames:
+            return TraineeCounts.capProj
+
+        print('%s is an invalid comp name.\n' % record.compentancy)
+        return 'err'
+
+    #Functions=============================================================
 def RetrieveSpreadSheet(jsonFile = 'JQR Self Progress-7a72c0d519ad.json', spreadSheetName = "JQR Self Progress"):
     # use creds to create a client to interact with the Google Drive API
     #global sheet
@@ -473,8 +632,30 @@ def MakePlots():
         # actualTrainees.append(currTrainee.name)
 
 
+def UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
+                     historicalTrackerSheetName='Historical Training Tracker',
+                     targetSheetName='Training Tracker'):
+    selfTrackersheet = RetrieveSpreadSheet(spreadSheetName=selfTrackerSheetName)
+    workSheets = selfTrackersheet.worksheets()
 
+    # All trainees currently loaded
+    allLoadedTrainees = [trainee.name.lower() for trainee in Trainees]
 
+    for currWorkSheet in workSheets:
+        # todo check that trainee is in list
+        if currWorkSheet._title.lower() not in allLoadedTrainees and currWorkSheet._title.lower() not in ['blank',
+                                                                                                          'example']:
+            print("Creating Object For in %s\n" % currWorkSheet._title.lower())
+            currTrainee = Trainee(currWorkSheet)
+            Trainees.append(currTrainee)
+
+    historicalTrackerSheet = RetrieveSpreadSheet(spreadSheetName=historicalTrackerSheetName)
+
+    targetSheet = RetrieveSpreadSheet(spreadSheetName=targetSheetName)
+
+    for trainee in Trainees:
+        tempCounts = TraineeCounts(trainee, historicalTrackerSheet)
+        tempCounts.UpdateJQRTracker(targetSheet)
 
 def main():
     # Getting the spread sheet from google drive
@@ -486,8 +667,11 @@ def main():
     MakePlots()
     CreateTableOfVelocities()
     CreateDayOfWeekDistributions()
-    CreateLineItemVelocityDistribution()
-    CreateCompVelocityDistribution()
+
+    updateTracker = input("Would you like to update the JQR tracker (y/n):")
+
+    if updateTracker.lower() == 'y':
+        UpdateJQRTracker()
 
 
 
