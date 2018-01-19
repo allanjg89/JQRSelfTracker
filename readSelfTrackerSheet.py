@@ -89,6 +89,8 @@ class Trainee:
         self.numRecords = 0;
         self.numberOfLineItemsCompleted = 0
         self.numberOfCompsCompleted = 0
+        self.averageLineVel = 0
+        self.averageCompVel = 0
 
         dates = worksheet.col_values(1)[1:-1]
         days = worksheet.col_values(2)[1:-1]
@@ -136,7 +138,8 @@ class Trainee:
         lineItems = [record.numberOfLineItems for record in self.records if record.valid]
         xvals = numpy.arange(len(dates))  # this should account for weekends and leave
         coeff = numpy.polyfit(xvals, numpy.array(sumList(lineItems)), 1)
-        self.lineVel = coeff[0]
+        self.averageLineVel = sum(lineItems)/len(dates)
+        self.lineVel = coeff[0] if coeff[0] > 0.001 else 0
         self.lineIntercpt = coeff[1]
         return dates, lineItems, xvals
 
@@ -145,7 +148,8 @@ class Trainee:
         compPercentages = [record.compentancyPercentage for record in self.records if record.valid]
         xvals = numpy.arange(len(dates))  # this should account for weekends and leave
         coeff = numpy.polyfit(xvals, numpy.array(sumList(compPercentages)), 1)
-        self.compVel = coeff[0]
+        self.averageCompVel = sum(compPercentages)/ len(dates)
+        self.compVel = coeff[0] if coeff[0] > 0.001 else 0
         self.compIntercept = coeff[1]
         return dates, compPercentages, xvals
 
@@ -197,11 +201,19 @@ class TraineeCounts:
 
         for record in Trainee.records:
             if record.section != '' and record.section != None and record.section != ' ':
-                self.traineeSections[record.section] = self.traineeSections[record.section] + record.numberOfLineItems
+
+                try:
+                    self.traineeSections[record.section] = self.traineeSections[record.section] + record.numberOfLineItems
+                except:
+                    print("Could not find key: %s in traineeSections.\n"%record.section)
+
                 if record.completedComp == 'y':
                     currComp = self.__CurrComp(record)
                     if currComp != 'err':
-                        self.traineeComps[currComp] = self.traineeComps[currComp] + 1
+                        try:
+                            self.traineeComps[currComp] = self.traineeComps[currComp] + 1
+                        except:
+                            print("Could not find key: %s in traineeComps.\n" % currComp)
 
         if HistoricSheet != None:
             HistoricSheet = HistoricSheet.worksheets()[0]
@@ -245,8 +257,8 @@ class TraineeCounts:
             dictionary[key] = int(value)
 
     def UpdateAllHistoricCounts(self, sheet):
-        UpdateHistoricCounts(sheet, self.historicSections)
-        UpdateHistoricCounts(sheet, self.historicalComps)
+        self.UpdateHistoricCounts(sheet, self.historicSections)
+        self.UpdateHistoricCounts(sheet, self.historicalComps)
 
     def UpdateJQRTracker(self, TargetSheet):
 
@@ -256,7 +268,7 @@ class TraineeCounts:
         nameCellTarget = TraineeCounts.findPositionOfCell(self.name, self.targetCells)
 
         if nameCellTarget[0] == -1:
-            print("Could not find %s in historical sheet.\n" % self.name)
+            print("Could not find %s in target sheet.\n" % self.name)
             return
 
         tempCellKey = None
@@ -361,6 +373,8 @@ def PlotLineVelocity(figure, trainee, color, marker):
 
     plt.plot(xvals, sumList(lineItems), color + marker, label=trainee.name + "; VEL:" + str(trainee.lineVel)[0:6])
     plt.plot(xvals, (trainee.lineVel * xvalsP) + trainee.lineIntercpt, color)
+    plt.xticks(xvals, dates)
+    plt.locator_params(axis='x', nbins=10)
     plt.legend(loc=0, prop={'size': 20})
 
     #return slopeintercept
@@ -380,6 +394,8 @@ def PlotCompVelocity(figure, trainee, color, marker):
     plt.plot(xvals, sumList(compPercentages), color + marker, label=trainee.name +
                         "; Latest Comp:" + GetLatestComp(trainee)+"; VEL:" + str(trainee.compVel)[0:6])
     plt.plot(xvals, (trainee.compVel * xvalsP) + trainee.compIntercept, color)
+    plt.xticks(xvals, dates)
+    plt.locator_params(axis='x', nbins=10)
     plt.legend(loc=0, prop={'size': 20})
 
     #return slope
@@ -399,30 +415,45 @@ def GetLatestComp(trainee):
 def CreateTableOfVelocities(file=None):
     global Trainees
 
-    formatStr = '{:^20} {:^20} {:^20} {:^20} {:^20}\n'
+    formatStr = '{:^15} {:^15} {:^15} {:^15} {:^15} {:^15} {:^15}\n'
 
     table = []
 
-    table.append(formatStr.format('NAME', 'LINE ITEM VELOCITY', 'COMP PROGRESS VELOCITY', 'LINE ITEMS COMPLETED', 'COMPS COMPLETED'))
+    table.append(
+        formatStr.format('NAME', 'LINE ITEM', 'LINE ITEM', 'COMP PROGRESS', 'COMP PROGRESS', 'LINE ITEMS', 'COMPS'))
+    table.append(
+        formatStr.format(' ', 'VELOCITY ML', 'VELOCITY AVG', 'VELOCITYM ML', 'VELOCITY AVG', 'COMPLETED', 'COMPLETED'))
 
     lineVelocities = []
     compVelocities = []
+    lineVelocitiesAVG = []
+    compVelocitiesAVG = []
 
     for trainee in Trainees:
         lineVelocities.append(trainee.lineVel)
         compVelocities.append(trainee.compVel)
+        lineVelocitiesAVG.append(trainee.averageLineVel)
+        compVelocitiesAVG.append(trainee.averageCompVel)
 
         lineVelStr = str(trainee.lineVel)
         compVelStr = str(trainee.compVel)
-        table.append(formatStr.format(trainee.name, lineVelStr[0:min(6, len(lineVelStr))],
-                                      compVelStr[0:min(6, len(compVelStr))], trainee.numberOfLineItemsCompleted,
-                                      trainee.numberOfCompsCompleted))
+        linVelAvg = str(trainee.averageLineVel)
+        compVelAvg = str(trainee.averageCompVel)
+        table.append(
+            formatStr.format(trainee.name, lineVelStr[0:min(6, len(lineVelStr))], linVelAvg[0:min(6, len(linVelAvg))],
+                             compVelStr[0:min(6, len(compVelStr))], compVelAvg[0:min(6, len(compVelAvg))],
+                             trainee.numberOfLineItemsCompleted,
+                             trainee.numberOfCompsCompleted))
 
-    statString = '\nLine Velocity:\tMean = {:.3f}\tSTD = {:.3f}\nComp Velocity:\tMean = {:.3f}\tSTD = {:.3f}\n\n\n '.format(
+    statString = '\nLine Velocity ML:\tMean = {:.3f}\tSTD = {:.3f}\nComp Velocity ML:\tMean = {:.3f}\tSTD = {:.3f}\nLine Velocity AVG:\tMean = {:.3f}\tSTD = {:.3f}\nComp Velocity AVG:\tMean = {:.3f}\tSTD = {:.3f}\n\n '.format(
         numpy.mean(numpy.array(lineVelocities)),
         numpy.std(numpy.array(lineVelocities)),
         numpy.mean(numpy.array(compVelocities)),
-        numpy.std(numpy.array(compVelocities)))
+        numpy.std(numpy.array(compVelocities)),
+        numpy.mean(numpy.array(lineVelocitiesAVG)),
+        numpy.std(numpy.array(lineVelocitiesAVG)),
+        numpy.mean(numpy.array(compVelocitiesAVG)),
+        numpy.std(numpy.array(compVelocitiesAVG)))
 
     table = [statString] + table
 
@@ -543,6 +574,9 @@ def GetListOfTraineeObjects():
             print("Creating Object For %s\n" % currWorkSheet._title.lower())
             currTrainee = Trainee(currWorkSheet)
             Trainees.append(currTrainee)
+    if len(Trainees) == 0:
+        print("No trainees selected or could be found from those desired.\n")
+        exit(-1)
 
 
 def FilterTraineesDateRanges():
@@ -606,14 +640,14 @@ def MakePlots():
 
     lineItemFigure = plt.figure("lineItemFigure", figsize=(18, 16))
 
-    plt.xlabel('Arbritrary Days', fontsize=16)
+    plt.xlabel('Date', fontsize=16)
     plt.ylabel('Number Of Line Items', fontsize=16)
     plt.title('Line Item Velocity ' + minDate.strftime("%Y-%m-%d") +
               ' to ' + maxDate.strftime("%Y-%m-%d"), fontsize=20)
 
     CompVelFigure = plt.figure("CompVelFigure", figsize=(18, 16))
 
-    plt.xlabel('Arbritrary Days', fontsize=16)
+    plt.xlabel('Date', fontsize=16)
     plt.ylabel('Competency Progress Percentage', fontsize=16)
     plt.title('Competency Progress Velocity ' + minDate.strftime("%Y-%m-%d") +
               ' to ' + maxDate.strftime("%Y-%m-%d"), fontsize=20)
@@ -654,7 +688,19 @@ def UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
     targetSheet = RetrieveSpreadSheet(spreadSheetName=targetSheetName)
 
     for trainee in Trainees:
+        print("Creating count object for  %s."%trainee.name)
+
         tempCounts = TraineeCounts(trainee, historicalTrackerSheet)
+
+        print("Self Tracker Sections/Comps:")
+        print(tempCounts.traineeSections)
+        print(tempCounts.traineeComps)
+
+        print("Historical Sections/Comps:")
+        print(tempCounts.historicSections)
+        print(tempCounts.historicalComps)
+
+        print("Updating %s.\n"%trainee.name)
         tempCounts.UpdateJQRTracker(targetSheet)
 
 def main():
