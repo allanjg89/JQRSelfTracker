@@ -77,6 +77,10 @@ class TraineeRecord:
         except:
             self.compentancyPercentage = 0
 
+    def PrintRecord(self):
+        print("Date: %s\tDay of Week: %s\tSection: %s\t# Line Items: %d\tCurrent Comp: %s\tEstimated Percentage Completed: %d\tCurrent Comp Completed:%s",
+              self.date.strftime('%m/%d/%Y'), self.day, self.section, self.numberOfLineItems, self.compentancy, self.compentancyPercentage, self.completedComp)
+
 class Trainee:
     def __init__(self, worksheet):
         self.name = worksheet._title
@@ -139,7 +143,8 @@ class Trainee:
         xvals = numpy.arange(len(dates))  # this should account for weekends and leave
         coeff = numpy.polyfit(xvals, numpy.array(sumList(lineItems)), 1)
         self.averageLineVel = sum(lineItems)/len(dates)
-        self.lineVel = coeff[0] if coeff[0] > 0.001 else 0
+        #self.lineVel = coeff[0] if coeff[0] > 0.001 else 0
+        self.lineVel = coeff[0]
         self.lineIntercpt = coeff[1]
         return dates, lineItems, xvals
 
@@ -149,16 +154,17 @@ class Trainee:
         xvals = numpy.arange(len(dates))  # this should account for weekends and leave
         coeff = numpy.polyfit(xvals, numpy.array(sumList(compPercentages)), 1)
         self.averageCompVel = sum(compPercentages)/ len(dates)
-        self.compVel = coeff[0] if coeff[0] > 0.001 else 0
+        #self.compVel = coeff[0] if coeff[0] > 0.001 else 0
+        self.compVel = coeff[0]
         self.compIntercept = coeff[1]
         return dates, compPercentages, xvals
 
 
 class TraineeCounts:
-    validCCompNames = ['C1', 'C2', 'C3', 'C4']
-    ValidPyCompNames = ['Py1', 'Py2']
-    ValidAsmCommpNames = ['Asm1', 'Asm2', 'Asm3']
-    ValidCapNames = ['Cap']
+    validCCompNames = ['C 1', 'C 2', 'C 3', 'C 4']
+    validPyCompNames = ['Py 1', 'Py 2 ']
+    validAsmCommpNames = ['Asm 1', 'Asm 2', 'Asm 3']
+    validCapNames = ['Cap']
 
     cComps = 'C Comps'
     pyComps = 'Python \nComps'
@@ -200,20 +206,21 @@ class TraineeCounts:
         self.targetCells = None
 
         for record in Trainee.records:
-            if record.section != '' and record.section != None and record.section != ' ':
 
                 try:
                     self.traineeSections[record.section] = self.traineeSections[record.section] + record.numberOfLineItems
                 except:
-                    print("Could not find key: %s in traineeSections.\n"%record.section)
+                    if record.section != '' and record.section != None and record.section != ' ':
+                        print("Could not find key: %s in traineeSections.\n"%record.section)
 
-                if record.completedComp == 'y':
+                if record.completedComp.lower() == 'y':
                     currComp = self.__CurrComp(record)
                     if currComp != 'err':
                         try:
                             self.traineeComps[currComp] = self.traineeComps[currComp] + 1
                         except:
                             print("Could not find key: %s in traineeComps.\n" % currComp)
+
 
         if HistoricSheet != None:
             HistoricSheet = HistoricSheet.worksheets()[0]
@@ -299,7 +306,7 @@ class TraineeCounts:
         for l in cells:
             col = 0
             for val in l:
-                if ''.join(c for c in value if c.isalnum()) == ''.join(c for c in val if c.isalnum()):
+                if TraineeCounts.CleanAndLowerStr(value) == TraineeCounts.CleanAndLowerStr(val):
                     return (row + 1, col + 1)
                 col = col + 1
             row = row + 1
@@ -308,17 +315,21 @@ class TraineeCounts:
 
     def __CurrComp(self, record):
 
-        if record.compentancy in TraineeCounts.validCCompNames:
+        if record.compentancy.lower() in TraineeCounts.CleanAndLowerStr(TraineeCounts.validCCompNames):
             return TraineeCounts.cComps
-        if record.compentancy in TraineeCounts.validCCompNames:
+        if record.compentancy.lower() in TraineeCounts.CleanAndLowerStr(TraineeCounts.validPyCompNames):
             return TraineeCounts.pyComps
-        if record.compentancy in TraineeCounts.validCCompNames:
+        if record.compentancy.lower() in TraineeCounts.CleanAndLowerStr(TraineeCounts.validAsmCommpNames):
             return TraineeCounts.asmComp
-        if record.compentancy in TraineeCounts.validCCompNames:
+        if record.compentancy.lower() in TraineeCounts.CleanAndLowerStr(TraineeCounts.validCapNames):
             return TraineeCounts.capProj
 
         print('%s is an invalid comp name.\n' % record.compentancy)
         return 'err'
+
+    @staticmethod
+    def CleanAndLowerStr(string):
+        return ''.join(c.lower() for c in ''.join(string) if c.isalnum())
 
     #Functions=============================================================
 def RetrieveSpreadSheet(jsonFile = 'JQR Self Progress-7a72c0d519ad.json', spreadSheetName = "JQR Self Progress"):
@@ -371,7 +382,7 @@ def PlotLineVelocity(figure, trainee, color, marker):
 
     xvals = [x + (dates[0] - minDate.date()).days for x in range(len(dates))]
 
-    plt.plot(xvals, sumList(lineItems), color + marker, label=trainee.name + "; VEL:" + str(trainee.lineVel)[0:6])
+    plt.plot(xvals, sumList(lineItems), color + marker, label=trainee.name + "; VEL:" + "{0: .3f}".format(trainee.lineVel))
     plt.plot(xvals, (trainee.lineVel * xvalsP) + trainee.lineIntercpt, color)
     plt.xticks(xvals, dates)
     plt.locator_params(axis='x', nbins=10)
@@ -392,7 +403,7 @@ def PlotCompVelocity(figure, trainee, color, marker):
     xvals = [x + (dates[0]-minDate.date()).days for x in range(len(dates))]
 
     plt.plot(xvals, sumList(compPercentages), color + marker, label=trainee.name +
-                        "; Latest Comp:" + GetLatestComp(trainee)+"; VEL:" + str(trainee.compVel)[0:6])
+                        "; Latest Comp:" + GetLatestComp(trainee)+"; VEL:" + "{0: .3f}".format(trainee.compVel))
     plt.plot(xvals, (trainee.compVel * xvalsP) + trainee.compIntercept, color)
     plt.xticks(xvals, dates)
     plt.locator_params(axis='x', nbins=10)
@@ -435,13 +446,26 @@ def CreateTableOfVelocities(file=None):
         lineVelocitiesAVG.append(trainee.averageLineVel)
         compVelocitiesAVG.append(trainee.averageCompVel)
 
-        lineVelStr = str(trainee.lineVel)
-        compVelStr = str(trainee.compVel)
-        linVelAvg = str(trainee.averageLineVel)
-        compVelAvg = str(trainee.averageCompVel)
+        floatFormat =  "{0: .3f}"
+
+
+        # lineVelStr = str(trainee.lineVel)
+        # compVelStr = str(trainee.compVel)
+        # linVelAvg = str(trainee.averageLineVel)
+        # compVelAvg = str(trainee.averageCompVel)
+        # table.append(
+        #     formatStr.format(trainee.name, lineVelStr[0:min(6, len(lineVelStr))], linVelAvg[0:min(6, len(linVelAvg))],
+        #                      compVelStr[0:min(6, len(compVelStr))], compVelAvg[0:min(6, len(compVelAvg))],
+        #                      trainee.numberOfLineItemsCompleted,
+        #                      trainee.numberOfCompsCompleted))
+
+        lineVelStr = floatFormat.format(trainee.lineVel)
+        compVelStr = floatFormat.format(trainee.compVel)
+        linVelAvg = floatFormat.format(trainee.averageLineVel)
+        compVelAvg = floatFormat.format(trainee.averageCompVel)
         table.append(
-            formatStr.format(trainee.name, lineVelStr[0:min(6, len(lineVelStr))], linVelAvg[0:min(6, len(linVelAvg))],
-                             compVelStr[0:min(6, len(compVelStr))], compVelAvg[0:min(6, len(compVelAvg))],
+            formatStr.format(trainee.name, lineVelStr, linVelAvg,
+                             compVelStr, compVelAvg,
                              trainee.numberOfLineItemsCompleted,
                              trainee.numberOfCompsCompleted))
 
@@ -571,11 +595,11 @@ def GetListOfTraineeObjects():
     for currWorkSheet in workSheets:
         # todo check that trainee is in list
         if currWorkSheet._title.lower() in desiredTrainees:
-            print("Creating Object For %s\n" % currWorkSheet._title.lower())
+            print("Creating Object For %s" % currWorkSheet._title.lower())
             currTrainee = Trainee(currWorkSheet)
             Trainees.append(currTrainee)
     if len(Trainees) == 0:
-        print("No trainees selected or could be found from those desired.\n")
+        print("No trainees selected or could be found from those desired.")
         exit(-1)
 
 
@@ -688,19 +712,27 @@ def UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
     targetSheet = RetrieveSpreadSheet(spreadSheetName=targetSheetName)
 
     for trainee in Trainees:
+
+        debug = True
+
         print("Creating count object for  %s."%trainee.name)
 
         tempCounts = TraineeCounts(trainee, historicalTrackerSheet)
 
-        print("Self Tracker Sections/Comps:")
-        print(tempCounts.traineeSections)
-        print(tempCounts.traineeComps)
+        if debug:
+            print("Self Tracker Sections/Comps:")
+            print(tempCounts.traineeSections)
+            print(tempCounts.traineeComps)
 
-        print("Historical Sections/Comps:")
-        print(tempCounts.historicSections)
-        print(tempCounts.historicalComps)
+            print("Historical Sections/Comps:")
+            print(tempCounts.historicSections)
+            print(tempCounts.historicalComps)
 
-        print("Updating %s.\n"%trainee.name)
+            a = input("Press <ENTER> to continue with update.")
+            print("Updating %s.\n" % trainee.name)
+
+
+
         tempCounts.UpdateJQRTracker(targetSheet)
 
 def main():
