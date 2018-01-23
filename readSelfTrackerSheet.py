@@ -8,6 +8,8 @@ import os
 
 #Globals============================================
 
+debug = False
+
 color_map = ['b', 'g', 'r', 'c', 'm', 'y',  'k', 'w']
 markers =['o',#	circle marker
 'v',#	triangle_down marker
@@ -202,6 +204,20 @@ class TraineeCounts:
                                  '204': 0,
                                  'Debug': 0}  # Same Row as 203
 
+        self.compsMax = {TraineeCounts.cComps: 0,
+                                TraineeCounts.pyComps: 0,
+                                TraineeCounts.asmComp: 0,
+                                TraineeCounts.capProj: 0}
+
+        self.sectionsMax = {'100': 0,
+                                '101': 0,
+                                '200': 0,
+                                '201': 0,
+                                '202': 0,
+                                # '203':0,
+                                '204': 0,
+                                'Debug': 0}  # Same Row as 203
+
         self.historicCells = None
         self.targetCells = None
 
@@ -372,13 +388,7 @@ def sumList(myList):
 def PlotLineVelocity(figure, trainee, color, marker):
     plt.figure(figure.number)
 
-    #xvals = numpy.array([(date - dates[0]).days for date in dates])
     dates, lineItems, xvalsP = trainee.computeLineItemVel()
-
-    #plt.xticks(xvals, dates)
-
-    #plt.locator_params(axis='x', nbins=10)
-
 
     xvals = [x + (dates[0] - minDate.date()).days for x in range(len(dates))]
 
@@ -396,9 +406,6 @@ def PlotCompVelocity(figure, trainee, color, marker):
 
     dates, compPercentages, xvalsP = trainee.computeCompVel()
 
-    #plt.xticks(xvals, dates)
-
-    #plt.locator_params(axis='x', nbins=10)
 
     xvals = [x + (dates[0]-minDate.date()).days for x in range(len(dates))]
 
@@ -447,17 +454,6 @@ def CreateTableOfVelocities(file=None):
         compVelocitiesAVG.append(trainee.averageCompVel)
 
         floatFormat =  "{0: .3f}"
-
-
-        # lineVelStr = str(trainee.lineVel)
-        # compVelStr = str(trainee.compVel)
-        # linVelAvg = str(trainee.averageLineVel)
-        # compVelAvg = str(trainee.averageCompVel)
-        # table.append(
-        #     formatStr.format(trainee.name, lineVelStr[0:min(6, len(lineVelStr))], linVelAvg[0:min(6, len(linVelAvg))],
-        #                      compVelStr[0:min(6, len(compVelStr))], compVelAvg[0:min(6, len(compVelAvg))],
-        #                      trainee.numberOfLineItemsCompleted,
-        #                      trainee.numberOfCompsCompleted))
 
         lineVelStr = floatFormat.format(trainee.lineVel)
         compVelStr = floatFormat.format(trainee.compVel)
@@ -713,7 +709,8 @@ def UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
 
     for trainee in Trainees:
 
-        debug = True
+        global debug
+
 
         print("Creating count object for  %s."%trainee.name)
 
