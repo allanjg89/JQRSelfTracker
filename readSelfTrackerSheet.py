@@ -5,10 +5,10 @@ import datetime
 import matplotlib.pyplot as plt
 import numpy
 import os
-
+import difflib
 #Globals============================================
 
-debug = False
+debug = True
 
 color_map = ['b', 'g', 'r', 'c', 'm', 'y',  'k', 'w']
 markers =['o',#	circle marker
@@ -43,15 +43,15 @@ minDate = datetime.datetime.now()
 maxDate = datetime.datetime(2015, 1, 1, 0, 0, 0)
 
 Trainees = []
-daysOfWeekLine = {'m': 0, 'tu': 0, 'w': 0, 'th': 0, 'f': 0}
+daysOfWeekLine = {'m': 0, 'tu': 0, 'w': 0, 'th': 0, 'f': 0} 
 daysOfWeekComp = {'m': 0, 'tu': 0, 'w': 0, 'th': 0, 'f': 0}
-days = ['m', 'tu', 'w', 'th', 'f']
+days = ['m', 'tu', 'w', 'th', 'f']  
 
 #Classes=======================================================================
 class TraineeRecord:
-    def __init__(self, date, day, section, numberOfLineItems, compentancy, compentancyPercentage, completedComp = 'n'):
+    def __init__(self, date, section, numberOfLineItems, compentancy, compentancyPercentage, completedComp = 'n'):
         #removing all special characters
-        day = ''.join(c for c in day if c.isalnum())
+        #day = ''.join(c for c in day if c.isalnum())
         numberOfLineItems = ''.join(c for c in numberOfLineItems if c.isalnum())
         compentancy = ''.join(c for c in compentancy if c.isalnum())
         compentancyPercentage = ''.join(c for c in compentancyPercentage if c.isalnum())
@@ -61,7 +61,7 @@ class TraineeRecord:
             date = '1/1/2010'
 
         self.date = dateutil.parser.parse(date)
-        self.day = day
+        self.day = days[self.date.weekday() % 5]
         self.valid = True
         self.section = section
         self.completedComp = completedComp
@@ -99,7 +99,7 @@ class Trainee:
         self.averageCompVel = 0
 
         dates = worksheet.col_values(1)[1:-1]
-        days = worksheet.col_values(2)[1:-1]
+        #days = worksheet.col_values(2)[1:-1]
         sections = worksheet.col_values(3)[1:-1]
         numberOfLineItems = worksheet.col_values(4)[1:-1]
         compentancies = worksheet.col_values(5)[1:-1]
@@ -111,7 +111,7 @@ class Trainee:
         for date in dates:
 
             if date != None and date != '' and  date != ' ':
-                currRecord = TraineeRecord(date, days[index], sections[index], numberOfLineItems[index],
+                currRecord = TraineeRecord(date, sections[index], numberOfLineItems[index],
                                            compentancies[index], compentancyPercentage[index],
                                            'y' if completedComp[index].lower() == 'y' else 'n')
 
@@ -140,8 +140,19 @@ class Trainee:
         self.compVel = compVel
 
     def computeLineItemVel(self):
+
+        if self.numRecords<2:
+            print("%s lacks sufficient records to do regression."%self.name)
+            return [],[],[]
+
         dates = [record.date.date() for record in self.records if record.valid]
         lineItems = [record.numberOfLineItems for record in self.records if record.valid]
+
+        #The instruction below is needed in the case that there are two or more records with the same date.
+        dateLineItems= Trainee.__ConsolidateIntoUniqueDict(dates,lineItems)
+        dates = list(dateLineItems.keys())
+        lineItems = list(dateLineItems.values())
+
         xvals = numpy.arange(len(dates))  # this should account for weekends and leave
         coeff = numpy.polyfit(xvals, numpy.array(sumList(lineItems)), 1)
         self.averageLineVel = sum(lineItems)/len(dates)
@@ -151,8 +162,18 @@ class Trainee:
         return dates, lineItems, xvals
 
     def computeCompVel(self):
+        if self.numRecords<2:
+            print("%s lacks sufficient records to do regression.",self.name)
+            return [],[],[]
+
         dates = [record.date.date() for record in self.records if record.valid]
         compPercentages = [record.compentancyPercentage for record in self.records if record.valid]
+
+        # The instruction below is needed in the case that there are two or more records with the same date.
+        dateLineItems = Trainee.__ConsolidateIntoUniqueDict(dates, compPercentages)
+        dates = list(dateLineItems.keys())
+        compPercentages = list(dateLineItems.values())
+
         xvals = numpy.arange(len(dates))  # this should account for weekends and leave
         coeff = numpy.polyfit(xvals, numpy.array(sumList(compPercentages)), 1)
         self.averageCompVel = sum(compPercentages)/ len(dates)
@@ -161,11 +182,24 @@ class Trainee:
         self.compIntercept = coeff[1]
         return dates, compPercentages, xvals
 
+    @staticmethod
+    def __ConsolidateIntoUniqueDict(keys,values):
+        retDict = {}
+        index = 0
+        for key in keys:
+            if key not in retDict:
+                retDict[key] = values[index]
+            else:
+                retDict[key] = values[index]+retDict[key]
+            index = index + 1
+
+        return retDict
+
 
 class TraineeCounts:
     validCCompNames = ['C 1', 'C 2', 'C 3', 'C 4']
-    validPyCompNames = ['Py 1', 'Py 2 ']
-    validAsmCommpNames = ['Asm 1', 'Asm 2', 'Asm 3']
+    validPyCompNames = ['Py 1', 'Py 2 ', 'P 1', 'P 2 ']
+    validAsmCommpNames = ['Asm 1', 'Asm 2', 'Asm 3', 'A 1', 'A 2', 'A 3']
     validCapNames = ['Cap']
 
     cComps = 'C Comps'
@@ -205,18 +239,23 @@ class TraineeCounts:
                                  'Debug': 0}  # Same Row as 203
 
         self.compsMax = {TraineeCounts.cComps: 0,
-                                TraineeCounts.pyComps: 0,
-                                TraineeCounts.asmComp: 0,
-                                TraineeCounts.capProj: 0}
+                    TraineeCounts.pyComps: 0,
+                    TraineeCounts.asmComp: 0,
+                    TraineeCounts.capProj: 0}
 
         self.sectionsMax = {'100': 0,
-                                '101': 0,
-                                '200': 0,
-                                '201': 0,
-                                '202': 0,
-                                # '203':0,
-                                '204': 0,
-                                'Debug': 0}  # Same Row as 203
+                       '101': 0,
+                       '200': 0,
+                       '201': 0,
+                       '202': 0,
+                       # '203':0,
+                       '204': 0,
+                       'Debug': 0}  # Same Row as 203
+
+
+
+        self.sections = list(self.traineeSections.keys())
+        self.comps = list(self.traineeComps.keys())
 
         self.historicCells = None
         self.targetCells = None
@@ -224,18 +263,19 @@ class TraineeCounts:
         for record in Trainee.records:
 
                 try:
-                    self.traineeSections[record.section] = self.traineeSections[record.section] + record.numberOfLineItems
+                    section = difflib.get_close_matches(record.section, self.sections)[0]
+                    self.traineeSections[section] = self.traineeSections[section] + record.numberOfLineItems
                 except:
                     if record.section != '' and record.section != None and record.section != ' ':
                         print("Could not find key: %s in traineeSections.\n"%record.section)
 
                 if record.completedComp.lower() == 'y':
                     currComp = self.__CurrComp(record)
-                    if currComp != 'err':
-                        try:
-                            self.traineeComps[currComp] = self.traineeComps[currComp] + 1
-                        except:
-                            print("Could not find key: %s in traineeComps.\n" % currComp)
+                    #if currComp != 'err':
+                    try:
+                        self.traineeComps[currComp] = self.traineeComps[currComp] + 1
+                    except:
+                        print("Could not find key: %s in traineeComps.\n" % currComp)
 
 
         if HistoricSheet != None:
@@ -285,7 +325,9 @@ class TraineeCounts:
 
     def UpdateJQRTracker(self, TargetSheet):
 
+
         TargetSheet = TargetSheet.worksheets()[0]
+
         self.targetCells = TargetSheet.get_all_values()
 
         nameCellTarget = TraineeCounts.findPositionOfCell(self.name, self.targetCells)
@@ -294,7 +336,10 @@ class TraineeCounts:
             print("Could not find %s in target sheet.\n" % self.name)
             return
 
-        tempCellKey = None
+        self.__FindMaxVals(nameCellTarget)
+
+        update = 'y'
+
         for key in self.traineeSections.keys():
 
             tempCellKey = TraineeCounts.findPositionOfCell(key, self.targetCells)
@@ -302,18 +347,30 @@ class TraineeCounts:
                 print("%s not found in target sheet.\n" % key)
                 continue
 
-            TargetSheet.update_cell(nameCellTarget[0], tempCellKey[1],
-                                    self.traineeSections[key] + self.historicSections[key])
+            inputVal = self.traineeSections[key] + self.historicSections[key]
+
+            if self.sectionsMax[key] < inputVal:
+                update = input("%s has a new value (%d) greater than max for section %s (%d). Contninue (y/n)?"% (self.name, inputVal, key, self.sectionsMax[key]))
+
+            if update.lower() == 'y':
+                TargetSheet.update_cell(nameCellTarget[0], tempCellKey[1], inputVal)
 
         for key in self.traineeComps.keys():
 
             tempCellKey = TraineeCounts.findPositionOfCell(key, self.targetCells)
+
             if tempCellKey[0] == -1:
                 print("%s not found in target sheet.\n" % key)
                 continue
 
-            TargetSheet.update_cell(nameCellTarget[0], tempCellKey[1],
-                                    self.traineeComps[key] + self.historicalComps[key])
+            inputVal = self.traineeComps[key] + self.historicalComps[key]
+
+            if self.compsMax[key] < inputVal:
+                update = input("%s has a new value (%d) greater than max for %s (%d). Contninue (y/n)?"%( self.name, inputVal,key, self.compsMax[key]))
+
+            if update.lower() == 'y':
+                TargetSheet.update_cell(nameCellTarget[0], tempCellKey[1], inputVal)
+
 
     @staticmethod
     def findPositionOfCell(value, cells):
@@ -331,17 +388,51 @@ class TraineeCounts:
 
     def __CurrComp(self, record):
 
-        if record.compentancy.lower() in TraineeCounts.CleanAndLowerStr(TraineeCounts.validCCompNames):
+        comp = TraineeCounts.CleanAndLowerStr(record.compentancy)
+
+
+        if comp in TraineeCounts.CleanAndLowerStr(TraineeCounts.validCCompNames):
             return TraineeCounts.cComps
-        if record.compentancy.lower() in TraineeCounts.CleanAndLowerStr(TraineeCounts.validPyCompNames):
+        if comp in TraineeCounts.CleanAndLowerStr(TraineeCounts.validPyCompNames):
             return TraineeCounts.pyComps
-        if record.compentancy.lower() in TraineeCounts.CleanAndLowerStr(TraineeCounts.validAsmCommpNames):
+        if comp in TraineeCounts.CleanAndLowerStr(TraineeCounts.validAsmCommpNames):
             return TraineeCounts.asmComp
-        if record.compentancy.lower() in TraineeCounts.CleanAndLowerStr(TraineeCounts.validCapNames):
+        if comp in TraineeCounts.CleanAndLowerStr(TraineeCounts.validCapNames):
             return TraineeCounts.capProj
 
-        print('%s is an invalid comp name.\n' % record.compentancy)
-        return 'err'
+        bestGuess = difflib.get_close_matches(comp, self.comps)[0]
+
+        print('%s is an invalid comp name. Best guess is: %s\n' % record.compentancy, bestGuess)
+        return bestGuess
+
+    def __FindMaxVals(self, nameCellTarget):
+
+
+        for key in self.sectionsMax.keys():
+            # The following finds the section cell right above the corresposding name row
+            tempCell = TraineeCounts.findPositionOfCell(key, reversed(self.targetCells[0:nameCellTarget[0]]))
+            row = nameCellTarget[0] - tempCell[0] - 1
+            value = self.targetCells[row][tempCell[1] - 1]
+            self.sectionsMax[key] = int(value)
+
+
+        for key in self.compsMax.keys():
+            # The following finds the section cell right above the corresposding name row
+            tempCell = TraineeCounts.findPositionOfCell(key, reversed(self.targetCells[0:nameCellTarget[0]]))
+            row = nameCellTarget[0] - tempCell[0] + 1
+            value = self.targetCells[row][tempCell[1] - 1]
+            self.compsMax[key] = int(value)
+
+
+    def __GetMaxVal(self, nameCellTarget, dictionary):
+
+        for key in dictionary.keys():
+            #The following finds the section cell right above the corresposding name row
+            tempCell = TraineeCounts.findPositionOfCell(key, reversed(self.targetCells[0:nameCellTarget[0]]))
+            row = nameCellTarget[0] - tempCell[0] -1
+            value = self.targetCells[row][tempCell[1]-1]
+            dictionary[key] = int(value)
+
 
     @staticmethod
     def CleanAndLowerStr(string):
@@ -394,9 +485,10 @@ def PlotLineVelocity(figure, trainee, color, marker):
 
     plt.plot(xvals, sumList(lineItems), color + marker, label=trainee.name + "; VEL:" + "{0: .3f}".format(trainee.lineVel))
     plt.plot(xvals, (trainee.lineVel * xvalsP) + trainee.lineIntercpt, color)
-    plt.xticks(xvals, dates)
-    plt.locator_params(axis='x', nbins=10)
+
     plt.legend(loc=0, prop={'size': 20})
+
+    return xvals, dates
 
     #return slopeintercept
 
@@ -412,11 +504,10 @@ def PlotCompVelocity(figure, trainee, color, marker):
     plt.plot(xvals, sumList(compPercentages), color + marker, label=trainee.name +
                         "; Latest Comp:" + GetLatestComp(trainee)+"; VEL:" + "{0: .3f}".format(trainee.compVel))
     plt.plot(xvals, (trainee.compVel * xvalsP) + trainee.compIntercept, color)
-    plt.xticks(xvals, dates)
-    plt.locator_params(axis='x', nbins=10)
+
     plt.legend(loc=0, prop={'size': 20})
 
-    #return slope
+    return xvals, dates
 
 
 def GetLatestComp(trainee):
@@ -448,22 +539,23 @@ def CreateTableOfVelocities(file=None):
     compVelocitiesAVG = []
 
     for trainee in Trainees:
-        lineVelocities.append(trainee.lineVel)
-        compVelocities.append(trainee.compVel)
-        lineVelocitiesAVG.append(trainee.averageLineVel)
-        compVelocitiesAVG.append(trainee.averageCompVel)
+        if trainee.numRecords > 0:
+            lineVelocities.append(trainee.lineVel)
+            compVelocities.append(trainee.compVel)
+            lineVelocitiesAVG.append(trainee.averageLineVel)
+            compVelocitiesAVG.append(trainee.averageCompVel)
 
-        floatFormat =  "{0: .3f}"
+            floatFormat =  "{0: .3f}"
 
-        lineVelStr = floatFormat.format(trainee.lineVel)
-        compVelStr = floatFormat.format(trainee.compVel)
-        linVelAvg = floatFormat.format(trainee.averageLineVel)
-        compVelAvg = floatFormat.format(trainee.averageCompVel)
-        table.append(
-            formatStr.format(trainee.name, lineVelStr, linVelAvg,
-                             compVelStr, compVelAvg,
-                             trainee.numberOfLineItemsCompleted,
-                             trainee.numberOfCompsCompleted))
+            lineVelStr = floatFormat.format(trainee.lineVel)
+            compVelStr = floatFormat.format(trainee.compVel)
+            linVelAvg = floatFormat.format(trainee.averageLineVel)
+            compVelAvg = floatFormat.format(trainee.averageCompVel)
+            table.append(
+                formatStr.format(trainee.name, lineVelStr, linVelAvg,
+                                 compVelStr, compVelAvg,
+                                 trainee.numberOfLineItemsCompleted,
+                                 trainee.numberOfCompsCompleted))
 
     statString = '\nLine Velocity ML:\tMean = {:.3f}\tSTD = {:.3f}\nComp Velocity ML:\tMean = {:.3f}\tSTD = {:.3f}\nLine Velocity AVG:\tMean = {:.3f}\tSTD = {:.3f}\nComp Velocity AVG:\tMean = {:.3f}\tSTD = {:.3f}\n\n '.format(
         numpy.mean(numpy.array(lineVelocities)),
@@ -528,13 +620,52 @@ def UpdateDayCount(daysOfWeekLine, daysOfWeekComp):
                     daysOfWeekComp[currDay] = daysOfWeekComp[currDay] + record.compentancyPercentage
                     daysOfWeekLine[currDay] = daysOfWeekLine[currDay] + record.numberOfLineItems
 
-def SetUp(sheet):
-    global desiredTrainees
+def SetUpDates():
     global desiredEarliestDate
     global desiredLatestDate
-    #global sheet
-    global workSheets
 
+    # The earliest date that someone can filter records on
+    earliestDate = datetime.datetime.min
+    # The latest date that someone can filter records on (ie today)
+    latestDate = datetime.datetime.now()
+
+    # Get date range for data points
+    badDate = True
+    while(badDate):
+        desiredEarliestDate = input(
+            "Please provide the begin date in \"M/D/YYYY\" format (ie 5/11/1989) to filter\n\t\"all\"\tif you dont want to filter:")
+
+        if desiredEarliestDate.lower() == "all":
+            desiredEarliestDate = earliestDate
+            desiredLatestDate = latestDate
+            return
+        else:
+            try:
+                desiredEarliestDate = dateutil.parser.parse(desiredEarliestDate)
+                badDate = False
+            except:
+                print("Invalid early date entered %s" % desiredEarliestDate)
+
+    badDate = True
+    while (badDate):
+        desiredLatestDate = input(
+            "Please provide the latest date in \"M/D/YYYY\" format (ie 5/11/2018) to filter\n\t\"today\"\tif you dont want to filter:")
+
+        if desiredLatestDate.lower() == "today":
+            desiredLatestDate = latestDate
+            return
+        else:
+            try:
+                desiredLatestDate = dateutil.parser.parse(desiredLatestDate)
+                badDate = False
+            except:
+                print("Invalid late date entered %s" % desiredEarliestDate)
+
+def GetListOfTraineeObjects(sheet):
+
+    global Trainees
+    global desiredTrainees
+    global workSheets
 
     # The earliest date that someone can filter records on
     earliestDate = datetime.datetime.min
@@ -563,30 +694,6 @@ def SetUp(sheet):
 
     desiredTrainees = desiredTrainees.lower()
     desiredTrainees = desiredTrainees.split(';')
-
-    # Get date range for data points
-    desiredEarliestDate = input(
-        "Please provide the begin date in \"M/D/YYYY\" format (ie 5/11/1989) to filter\n\t\"all\"\tif you dont want to filter:")
-
-    if desiredEarliestDate.lower() != "all":
-        desiredLatestDate = input(
-            "Please provide the latest date in \"M/D/YYYY\" format (ie 5/11/2018) to filter\n\t\"today\"\tif you dont want to filter:")
-        desiredEarliestDate = datetime.datetime.strptime(desiredEarliestDate, '%m/%d/%Y')
-
-        if desiredLatestDate.lower() == "today":
-            desiredLatestDate = latestDate
-        else:
-            desiredLatestDate = datetime.datetime.strptime(desiredLatestDate, '%m/%d/%Y')
-    else:
-        desiredEarliestDate = earliestDate
-        desiredLatestDate = latestDate
-
-
-
-def GetListOfTraineeObjects():
-
-    global Trainees
-    global desiredTrainees
 
     for currWorkSheet in workSheets:
         # todo check that trainee is in list
@@ -674,17 +781,43 @@ def MakePlots():
 
     count = 0
 
+
+
     for currTrainee in Trainees:
 
-        PlotLineVelocity(lineItemFigure, currTrainee, color_map[count % len(color_map)],
-                                            markers[count // len(color_map)])
-        PlotCompVelocity(CompVelFigure, currTrainee, color_map[count % len(color_map)],
-                                        markers[count // len(color_map)])
-        count = count + 1
-        # lineItemVelocities.append(lineItemVelocity)
-        # compProgressVelocities.append(compVelocity)
-        # actualTrainees.append(currTrainee.name)
+        if currTrainee.numRecords > 1:
 
+            PlotLineVelocity(lineItemFigure, currTrainee, color_map[count % len(color_map)],
+                                                markers[count // len(color_map)])
+            xvals, dates = PlotCompVelocity(CompVelFigure, currTrainee, color_map[count % len(color_map)],
+                                            markers[count // len(color_map)])
+
+            if count == 0:
+                minx = xvals[0]
+                maxx = xvals[-1]
+                mindate = dates[0]
+                maxdate = dates[-1]
+            else:
+                if xvals[0] < minx:
+                    minx = xvals[0]
+                if dates[0] < mindate:
+                    mindate = dates[0]
+                if xvals[-1] > maxx:
+                    maxx = xvals[-1]
+                if dates[-1] > maxdate:
+                    maxdate = dates[-1]
+
+            count = count + 1
+            # lineItemVelocities.append(lineItemVelocity)
+            # compProgressVelocities.append(compVelocity)
+            # actualTrainees.append(currTrainee.name)
+    plt.figure(lineItemFigure.number)
+    plt.xticks(range(minx,maxx), [mindate+datetime.timedelta(days = count) for count in range(maxx-minx)])
+    plt.locator_params(axis='x', nbins=10)
+
+    plt.figure(CompVelFigure.number)
+    plt.xticks(range(minx, maxx), [maxdate - datetime.timedelta(days=count) for count in range(maxx - minx)])
+    plt.locator_params(axis='x', nbins=10)
 
 def UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
                      historicalTrackerSheetName='Historical Training Tracker',
@@ -699,7 +832,7 @@ def UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
         # todo check that trainee is in list
         if currWorkSheet._title.lower() not in allLoadedTrainees and currWorkSheet._title.lower() not in ['blank',
                                                                                                           'example']:
-            print("Creating Object For in %s\n" % currWorkSheet._title.lower())
+            print("Creating Trainee Object For in %s" % currWorkSheet._title.lower())
             currTrainee = Trainee(currWorkSheet)
             Trainees.append(currTrainee)
 
@@ -735,18 +868,20 @@ def UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
 def main():
     # Getting the spread sheet from google drive
     global sheet
-    sheet = RetrieveSpreadSheet(spreadSheetName="Testing")
-    SetUp(sheet)
-    GetListOfTraineeObjects()
-    FilterTraineesDateRanges()
-    MakePlots()
-    CreateTableOfVelocities()
-    CreateDayOfWeekDistributions()
-
+    # sheet = RetrieveSpreadSheet()
+    # SetUpDates()
+    # GetListOfTraineeObjects()
+    # FilterTraineesDateRanges()
+    # MakePlots()
+    # CreateTableOfVelocities()
+    # CreateDayOfWeekDistributions()
+    #
     updateTracker = input("Would you like to update the JQR tracker (y/n):")
 
     if updateTracker.lower() == 'y':
-        UpdateJQRTracker()
+        UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
+                         historicalTrackerSheetName='Historical Training Tracker',
+                         targetSheetName='Target Training Tracker')
 
 
 
