@@ -8,7 +8,7 @@ import os
 import difflib
 #Globals============================================
 
-debug = True
+debug = False
 
 color_map = ['b', 'g', 'r', 'c', 'm', 'y',  'k', 'w']
 markers =['o',#	circle marker
@@ -79,8 +79,8 @@ class TraineeRecord:
         except:
             self.compentancyPercentage = 0
 
-    def PrintRecord(self):
-        print("Date: %s\tDay of Week: %s\tSection: %s\t# Line Items: %d\tCurrent Comp: %s\tEstimated Percentage Completed: %d\tCurrent Comp Completed:%s",
+    def __str__(self):
+        return "Date: %s\tDay of Week: %s\tSection: %s\t# Line Items: %d\tCurrent Comp: %s\tEstimated Percentage Completed: %d\tCurrent Comp Completed:%s".format(
               self.date.strftime('%m/%d/%Y'), self.day, self.section, self.numberOfLineItems, self.compentancy, self.compentancyPercentage, self.completedComp)
 
 class Trainee:
@@ -227,7 +227,7 @@ class TraineeCounts:
                                 '202': 0,
                                 # '203':0,
                                 '204': 0,
-                                'Debug': 0}  # Same Row as 203
+                                'Debug': 0}  # Same column as 203
 
         self.historicSections = {'100': 0,
                                  '101': 0,
@@ -236,7 +236,7 @@ class TraineeCounts:
                                  '202': 0,
                                  # '203':0,
                                  '204': 0,
-                                 'Debug': 0}  # Same Row as 203
+                                 'Debug': 0}  # Same column as 203
 
         self.compsMax = {TraineeCounts.cComps: 0,
                     TraineeCounts.pyComps: 0,
@@ -271,11 +271,11 @@ class TraineeCounts:
 
                 if record.completedComp.lower() == 'y':
                     currComp = self.__CurrComp(record)
-                    #if currComp != 'err':
-                    try:
-                        self.traineeComps[currComp] = self.traineeComps[currComp] + 1
-                    except:
-                        print("Could not find key: %s in traineeComps.\n" % currComp)
+                    if currComp != 'err':
+                        try:
+                            self.traineeComps[currComp] = self.traineeComps[currComp] + 1
+                        except:
+                            print("Could not find key: %s in traineeComps.\n" % currComp)
 
 
         if HistoricSheet != None:
@@ -359,6 +359,7 @@ class TraineeCounts:
 
             tempCellKey = TraineeCounts.findPositionOfCell(key, self.targetCells)
 
+
             if tempCellKey[0] == -1:
                 print("%s not found in target sheet.\n" % key)
                 continue
@@ -400,28 +401,51 @@ class TraineeCounts:
         if comp in TraineeCounts.CleanAndLowerStr(TraineeCounts.validCapNames):
             return TraineeCounts.capProj
 
-        bestGuess = difflib.get_close_matches(comp, self.comps)[0]
+        try:
+            bestGuess = difflib.get_close_matches(comp, self.comps)[0]
+        except:
+            print('%s is an invalid comp name.\n' % record.compentancy)
+            return 'ERR'
 
         print('%s is an invalid comp name. Best guess is: %s\n' % record.compentancy, bestGuess)
         return bestGuess
+
 
     def __FindMaxVals(self, nameCellTarget):
 
 
         for key in self.sectionsMax.keys():
             # The following finds the section cell right above the corresposding name row
-            tempCell = TraineeCounts.findPositionOfCell(key, reversed(self.targetCells[0:nameCellTarget[0]]))
+            if key == 'Debug':
+                tempCell = TraineeCounts.findPositionOfCell('203', reversed(self.targetCells[0:nameCellTarget[0]]))
+                if tempCell[0] == -1:
+                    tempCell = TraineeCounts.findPositionOfCell('Debug', reversed(self.targetCells[0:nameCellTarget[0]]))
+            else:
+                tempCell = TraineeCounts.findPositionOfCell(key, reversed(self.targetCells[0:nameCellTarget[0]]))
+
+            if tempCell[0] == -1:
+                print("Could not find key %s."%key)
+                continue
             row = nameCellTarget[0] - tempCell[0] - 1
             value = self.targetCells[row][tempCell[1] - 1]
-            self.sectionsMax[key] = int(value)
+            try:
+                self.sectionsMax[key] = int(value)
+            except:
+                print("Error finding max value for %s." % key)
 
 
         for key in self.compsMax.keys():
             # The following finds the section cell right above the corresposding name row
             tempCell = TraineeCounts.findPositionOfCell(key, reversed(self.targetCells[0:nameCellTarget[0]]))
+            if tempCell[0] == -1:
+                print("Could not find key %s."%key)
+                continue
             row = nameCellTarget[0] - tempCell[0] + 1
             value = self.targetCells[row][tempCell[1] - 1]
-            self.compsMax[key] = int(value)
+            try:
+                self.compsMax[key] = int(value)
+            except:
+                print("Error finding max value for %s." % key)
 
 
     def __GetMaxVal(self, nameCellTarget, dictionary):
@@ -557,7 +581,9 @@ def CreateTableOfVelocities(file=None):
                                  trainee.numberOfLineItemsCompleted,
                                  trainee.numberOfCompsCompleted))
 
-    statString = '\nLine Velocity ML:\tMean = {:.3f}\tSTD = {:.3f}\nComp Velocity ML:\tMean = {:.3f}\tSTD = {:.3f}\nLine Velocity AVG:\tMean = {:.3f}\tSTD = {:.3f}\nComp Velocity AVG:\tMean = {:.3f}\tSTD = {:.3f}\n\n '.format(
+    statString = minDate.strftime("%Y-%m-%d") +\
+              ' to ' + maxDate.strftime("%Y-%m-%d") +'\n'+\
+              '\nLine Velocity ML:\tMean = {:.3f}\tSTD = {:.3f}\nComp Velocity ML:\tMean = {:.3f}\tSTD = {:.3f}\nLine Velocity AVG:\tMean = {:.3f}\tSTD = {:.3f}\nComp Velocity AVG:\tMean = {:.3f}\tSTD = {:.3f}\n\n '.format(
         numpy.mean(numpy.array(lineVelocities)),
         numpy.std(numpy.array(lineVelocities)),
         numpy.mean(numpy.array(compVelocities)),
