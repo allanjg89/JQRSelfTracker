@@ -182,6 +182,36 @@ class Trainee:
         self.compIntercept = coeff[1]
         return dates, compPercentages, xvals
 
+    def FilterTrainee(self, lowerDate, upperDate):
+
+        if upperDate >= self.maxDate and lowerDate <= self.minDate:
+            return
+
+        if lowerDate > self.minDate:
+            self.minDate = lowerDate
+        if upperDate < self.maxDate:
+            self.maxDate = upperDate
+
+        # filteredRecords = []
+
+        for record in self.records:
+            if record.date <= upperDate and record.date >= lowerDate:
+                record.valid = True
+            else:
+                self.numRecords = self.numRecords - 1
+                record.valid = False
+                self.numberOfLineItemsCompleted = self.numberOfLineItemsCompleted - record.numberOfLineItems
+                if record.completedComp.lower() == 'y':
+                    self.numberOfCompsCompleted = self.numberOfCompsCompleted - 1
+
+    def ResetRecords(self):
+        for record in self.records:
+            record.valid = True
+            if record.date < self.minDate:
+                self.minDate = record.date
+            if record.date > self.maxDate:
+                self.maxDate = record.date
+
     @staticmethod
     def __ConsolidateIntoUniqueDict(keys,values):
         retDict = {}
@@ -262,20 +292,21 @@ class TraineeCounts:
 
         for record in Trainee.records:
 
-                try:
-                    section = difflib.get_close_matches(record.section, self.sections)[0]
-                    self.traineeSections[section] = self.traineeSections[section] + record.numberOfLineItems
-                except:
-                    if record.section != '' and record.section != None and record.section != ' ':
-                        print("Could not find key: %s in traineeSections.\n"%record.section)
 
-                if record.completedComp.lower() == 'y':
-                    currComp = self.__CurrComp(record)
-                    if currComp != 'err':
-                        try:
-                            self.traineeComps[currComp] = self.traineeComps[currComp] + 1
-                        except:
-                            print("Could not find key: %s in traineeComps.\n" % currComp)
+            try:
+                section = difflib.get_close_matches(record.section, self.sections)[0]
+                self.traineeSections[section] = self.traineeSections[section] + record.numberOfLineItems
+            except:
+                if record.section != '' and record.section != None and record.section != ' ':
+                    print("Could not find key: %s in traineeSections.\n"%record.section)
+
+            if record.completedComp.lower() == 'y':
+                currComp = self.__CurrComp(record)
+                if currComp != 'err':
+                    try:
+                        self.traineeComps[currComp] = self.traineeComps[currComp] + 1
+                    except:
+                        print("Could not find key: %s in traineeComps.\n" % currComp)
 
 
         if HistoricSheet != None:
@@ -740,33 +771,13 @@ def FilterTraineesDateRanges():
     global desiredLatestDate
 
     for currTrainee in Trainees:
-        FilterTrainee(currTrainee, desiredEarliestDate, desiredLatestDate)
+        currTrainee.FilterTrainee(desiredEarliestDate, desiredLatestDate)
         if currTrainee.minDate < minDate:
             minDate = currTrainee.minDate
         if currTrainee.maxDate > maxDate:
             maxDate = currTrainee.maxDate
 
-def FilterTrainee(trainee, lowerDate, upperDate):
 
-    if upperDate >= trainee.maxDate and lowerDate <= trainee.minDate:
-        return
-
-    if lowerDate > trainee.minDate:
-        trainee.minDate = lowerDate
-    if upperDate < trainee.maxDate:
-        trainee.maxDate = upperDate
-
-    #filteredRecords = []
-
-    for record in trainee.records:
-        if record.date <= upperDate and record.date >= lowerDate:
-            record.valid = True
-        else:
-            trainee.numRecords = trainee.numRecords - 1
-            record.valid = False
-            trainee.numberOfLineItemsCompleted = trainee.numberOfLineItemsCompleted - record.numberOfLineItems
-            if record.completedComp.lower() == 'y':
-                trainee.numberOfCompsCompleted = trainee.numberOfCompsCompleted - 1
 
         #filteredRecords.append(record)
 
