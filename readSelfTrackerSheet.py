@@ -228,9 +228,9 @@ class Trainee:
 
 class TraineeCounts:
     validCCompNames = ['C 1', 'C 2', 'C 3', 'C 4']
-    validPyCompNames = ['Py 1', 'Py 2 ', 'P 1', 'P 2 ']
-    validAsmCommpNames = ['Asm 1', 'Asm 2', 'Asm 3', 'A 1', 'A 2', 'A 3']
-    validCapNames = ['Cap']
+    validPyCompNames = ['Py 1', 'Py 2 ', 'P 1', 'P 2 ', 'pyhton 1', 'pyhton 2']
+    validAsmCommpNames = ['Asm 1', 'Asm 2', 'Asm 3', 'A 1', 'A 2', 'A 3', 'assembly 1', 'assembly 2', 'assembly 3']
+    validCapNames = ['Cap', 'capstone']
 
     cComps = 'C Comps'
     pyComps = 'Python \nComps'
@@ -297,8 +297,9 @@ class TraineeCounts:
                 section = difflib.get_close_matches(record.section, self.sections)[0]
                 self.traineeSections[section] = self.traineeSections[section] + record.numberOfLineItems
             except:
-                if record.section != '' and record.section != None and record.section != ' ':
-                    print("Could not find key: %s in traineeSections.\n"%record.section)
+                if record.section != '' and record.section != None and record.section != ' ' \
+                        and TraineeCounts.CleanAndLowerStr(record.section) != 'na':
+                    print("Could not find key: %s in traineeSections."%record.section)
 
             if record.completedComp.lower() == 'y':
                 currComp = self.__CurrComp(record)
@@ -306,7 +307,7 @@ class TraineeCounts:
                     try:
                         self.traineeComps[currComp] = self.traineeComps[currComp] + 1
                     except:
-                        print("Could not find key: %s in traineeComps.\n" % currComp)
+                        print("Could not find key: %s in traineeComps." % currComp)
 
 
         if HistoricSheet != None:
@@ -320,7 +321,7 @@ class TraineeCounts:
         try:
             return sheet.find(self.name)
         except:
-            print("%s not present in Historical Sheet.\n" % self.name)
+            print("%s not present in Historical Sheet." % self.name)
 
         return None
 
@@ -328,7 +329,7 @@ class TraineeCounts:
         nameCellHistorical = TraineeCounts.findPositionOfCell(self.name, self.historicCells)
 
         if nameCellHistorical[0] == -1:
-            print("Could not find %s in historical sheet.\n" % self.name)
+            print("Could not find %s in historical sheet." % self.name)
             return
 
         tempCellKey = None
@@ -339,7 +340,7 @@ class TraineeCounts:
             tempCellKey = TraineeCounts.findPositionOfCell(key, self.historicCells)
 
             if tempCellKey[0] == -1:
-                print("%s not found in historic sheet.\n" % key)
+                print("%s not found in historic sheet." % key)
                 continue
 
             tempCellVal = sheet.cell(nameCellHistorical[0], tempCellKey[1])
@@ -364,7 +365,7 @@ class TraineeCounts:
         nameCellTarget = TraineeCounts.findPositionOfCell(self.name, self.targetCells)
 
         if nameCellTarget[0] == -1:
-            print("Could not find %s in target sheet.\n" % self.name)
+            print("Could not find %s in target sheet." % self.name)
             return
 
         self.__FindMaxVals(nameCellTarget)
@@ -375,7 +376,7 @@ class TraineeCounts:
 
             tempCellKey = TraineeCounts.findPositionOfCell(key, self.targetCells)
             if tempCellKey[0] == -1:
-                print("%s not found in target sheet.\n" % key)
+                print("%s not found in target sheet." % key)
                 continue
 
             inputVal = self.traineeSections[key] + self.historicSections[key]
@@ -392,7 +393,7 @@ class TraineeCounts:
 
 
             if tempCellKey[0] == -1:
-                print("%s not found in target sheet.\n" % key)
+                print("%s not found in target sheet." % key)
                 continue
 
             inputVal = self.traineeComps[key] + self.historicalComps[key]
@@ -435,10 +436,10 @@ class TraineeCounts:
         try:
             bestGuess = difflib.get_close_matches(comp, self.comps)[0]
         except:
-            print('%s is an invalid comp name.\n' % record.compentancy)
-            return 'ERR'
+            print('%s is an invalid comp name.' % record.compentancy)
+            return 'err'
 
-        print('%s is an invalid comp name. Best guess is: %s\n' % record.compentancy, bestGuess)
+        print('%s is an invalid comp name. Best guess is: %s' % record.compentancy, bestGuess)
         return bestGuess
 
 
@@ -493,21 +494,29 @@ class TraineeCounts:
     def CleanAndLowerStr(string):
         return ''.join(c.lower() for c in ''.join(string) if c.isalnum())
 
-    #Functions=============================================================
+#Functions=============================================================
+'''
+@fn RetrieveSpreadSheet(jsonFile, spreadSheetName)
+@brief Function to open a spreadsheet from the google server
+@param jsonFile name of the .jsonFile key to access the google drive file
+@param spreadSheetName name of the spreadsheet to be opened
+@return returns google spreadsheet object from the gspread API
+'''
 def RetrieveSpreadSheet(jsonFile = 'JQR Self Progress-7a72c0d519ad.json', spreadSheetName = "JQR Self Progress"):
     # use creds to create a client to interact with the Google Drive API
     #global sheet
     if not os.path.exists(jsonFile):
-        print("%s could not be located.\n" % jsonFile)
+        print("%s could not be located." % jsonFile)
         exit(-1)
 
     scope = ['https://spreadsheets.google.com/feeds']
     try:
+        # Using Oath2client API to authenticate to google drive
         creds = ServiceAccountCredentials.from_json_keyfile_name(jsonFile, scope)
         client = gspread.authorize(creds)
         sheet = client.open(spreadSheetName)
     except:
-        print("Could not retrive Spread Sheet %s\n"%spreadSheetName)
+        print("Could not retrive Spread Sheet %s"%spreadSheetName)
         exit(-1)
 
     return sheet
@@ -525,7 +534,7 @@ def sumList(myList):
             first = False
         else:
             currSum = currSum + i
-        currSum = currSum + i
+
         retList.append(currSum)
 
     return retList
@@ -537,8 +546,9 @@ def PlotLineVelocity(figure, trainee, color, marker):
     dates, lineItems, xvalsP = trainee.computeLineItemVel()
 
     xvals = [x + (dates[0] - minDate.date()).days for x in range(len(dates))]
+    yvals = sumList(lineItems)
 
-    plt.plot(xvals, sumList(lineItems), color + marker, label=trainee.name + "; VEL:" + "{0: .3f}".format(trainee.lineVel))
+    plt.plot(xvals, yvals, color + marker, label=trainee.name + "; VEL:" + "{0: .3f}".format(trainee.lineVel))
     plt.plot(xvals, (trainee.lineVel * xvalsP) + trainee.lineIntercpt, color)
 
     plt.legend(loc=0, prop={'size': 20})
@@ -555,8 +565,9 @@ def PlotCompVelocity(figure, trainee, color, marker):
 
 
     xvals = [x + (dates[0]-minDate.date()).days for x in range(len(dates))]
+    yvals = sumList(compPercentages)
 
-    plt.plot(xvals, sumList(compPercentages), color + marker, label=trainee.name +
+    plt.plot(xvals, yvals, color + marker, label=trainee.name +
                         "; Latest Comp:" + GetLatestComp(trainee)+"; VEL:" + "{0: .3f}".format(trainee.compVel))
     plt.plot(xvals, (trainee.compVel * xvalsP) + trainee.compIntercept, color)
 
@@ -676,7 +687,11 @@ def UpdateDayCount(daysOfWeekLine, daysOfWeekComp):
                 if currDay in days:
                     daysOfWeekComp[currDay] = daysOfWeekComp[currDay] + record.compentancyPercentage
                     daysOfWeekLine[currDay] = daysOfWeekLine[currDay] + record.numberOfLineItems
-
+'''
+@fn SetUpDates()
+@brief Retrieved desired date range from the user
+@details sets the global params desiredEarliestDate and desiredLatestDate with the user specified dates.
+'''
 def SetUpDates():
     global desiredEarliestDate
     global desiredLatestDate
@@ -717,17 +732,16 @@ def SetUpDates():
                 badDate = False
             except:
                 print("Invalid late date entered %s" % desiredEarliestDate)
-
+'''
+@fn GetListOfTraineeObjects
+@brief Reads in the list of current trainees from the spreadsheet then retrieves data for the user desired trainee
+@param sheet the sheet object retrieved from the google drive
+'''
 def GetListOfTraineeObjects(sheet):
 
     global Trainees
     global desiredTrainees
     global workSheets
-
-    # The earliest date that someone can filter records on
-    earliestDate = datetime.datetime.min
-    # The latest date that someone can filter records on (ie today)
-    latestDate = datetime.datetime.now()
 
     workSheets = sheet.worksheets()
 
@@ -742,7 +756,7 @@ def GetListOfTraineeObjects(sheet):
         allTrainees.remove('BLANK')
 
     desiredTrainees = input(
-        "Please indicate in semicolon seperated format who the desired trainees are.\n\n\tie \"Gamboa,Allan\"; \"Basior,Greg\";...\n\n" +
+        "Please indicate in semicolon seperated format who the desired trainees are.\n\n\tie \"Gamboa,Allan\";\"Basior,Greg\";...\n\n" +
         "\tIf all trainees are desired say:\n\n\t\"all\"\n\n" +
         "\tAvailable Trainees are:\n\n\t" + (','.join(allTrainees)).replace(',', '\n\t') + "\n")
 
@@ -853,7 +867,7 @@ def MakePlots():
     plt.locator_params(axis='x', nbins=10)
 
     plt.figure(CompVelFigure.number)
-    plt.xticks(range(minx, maxx), [maxdate - datetime.timedelta(days=count) for count in range(maxx - minx)])
+    plt.xticks(range(minx, maxx), [mindate + datetime.timedelta(days=count) for count in range(maxx - minx)])
     plt.locator_params(axis='x', nbins=10)
 
 def UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
@@ -896,23 +910,21 @@ def UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
             print(tempCounts.historicalComps)
 
             a = input("Press <ENTER> to continue with update.")
-            print("Updating %s.\n" % trainee.name)
 
-
-
+        print("Updating %s.\n" % trainee.name)
         tempCounts.UpdateJQRTracker(targetSheet)
 
 def main():
     # Getting the spread sheet from google drive
     global sheet
-    # sheet = RetrieveSpreadSheet()
-    # SetUpDates()
-    # GetListOfTraineeObjects()
-    # FilterTraineesDateRanges()
-    # MakePlots()
-    # CreateTableOfVelocities()
-    # CreateDayOfWeekDistributions()
-    #
+    sheet = RetrieveSpreadSheet()
+    SetUpDates()
+    GetListOfTraineeObjects(sheet)
+    FilterTraineesDateRanges()
+    MakePlots()
+    CreateTableOfVelocities()
+    CreateDayOfWeekDistributions()
+
     updateTracker = input("Would you like to update the JQR tracker (y/n):")
 
     if updateTracker.lower() == 'y':
