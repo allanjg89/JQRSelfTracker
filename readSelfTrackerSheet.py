@@ -269,19 +269,19 @@ class TraineeCounts:
                                  '204': 0,
                                  'Debug': 0}  # Same column as 203
 
-        self.compsMax = {TraineeCounts.cComps: (0,[-1,-1]),
-                    TraineeCounts.pyComps: (0,[-1,-1]),
-                    TraineeCounts.asmComp: (0,[-1,-1]),
-                    TraineeCounts.capProj: (0,[-1,-1])}
+        self.compsMax = {TraineeCounts.cComps: [0,[-1,-1]],
+                    TraineeCounts.pyComps: [0,[-1,-1]],
+                    TraineeCounts.asmComp: [0,[-1,-1]],
+                    TraineeCounts.capProj: [0,[-1,-1]]}
 
-        self.sectionsMax = {'100': (0,[-1,-1]), #(value and position)
-                       '101': (0,[-1,-1]),
-                       '200': (0,[-1,-1]),
-                       '201': (0,[-1,-1]),
-                       '202': (0,[-1,-1]),
-                       # '203':(0,[-1,-1]),
-                       '204': (0,[-1,-1]),
-                       'Debug': (0,[-1,-1])}  # Same Row as 203
+        self.sectionsMax = {'100': [0,[-1,-1]], #(value and position)
+                       '101': [0,[-1,-1]],
+                       '200': [0,[-1,-1]],
+                       '201': [0,[-1,-1]],
+                       '202': [0,[-1,-1]],
+                       # '203':[0,[-1,-1]],
+                       '204': [0,[-1,-1]],
+                       'Debug': [0,[-1,-1]]}  # Same Row as 203
 
 
 
@@ -467,7 +467,7 @@ class TraineeCounts:
             value = self.targetCells[row][tempCell[1] - 1]
             try:
                 self.sectionsMax[key][0] = int(value)
-                self.sectionsMax[key][1] = [row, tempCell[1] - 1]
+                self.sectionsMax[key][1] = [row, tempCell[1]]
             except:
                 print("Error finding max value for %s." % key)
 
@@ -482,7 +482,7 @@ class TraineeCounts:
             value = self.targetCells[row][tempCell[1] - 1]
             try:
                 self.compsMax[key][0] = int(value)
-                self.compsMax[key][1] = [row, tempCell[1] - 1]
+                self.compsMax[key][1] = [row, tempCell[1]]
             except:
                 print("Error finding max value for %s." % key)
 
