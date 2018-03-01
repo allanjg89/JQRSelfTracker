@@ -2,13 +2,14 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import dateutil.parser
 import datetime
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import numpy
 import os
 import difflib
+
 #Globals============================================
 
-debug = False
+debug = True
 
 color_map = ['b', 'g', 'r', 'c', 'm', 'y',  'k', 'w']
 markers =['o',#	circle marker
@@ -268,19 +269,19 @@ class TraineeCounts:
                                  '204': 0,
                                  'Debug': 0}  # Same column as 203
 
-        self.compsMax = {TraineeCounts.cComps: 0,
-                    TraineeCounts.pyComps: 0,
-                    TraineeCounts.asmComp: 0,
-                    TraineeCounts.capProj: 0}
+        self.compsMax = {TraineeCounts.cComps: (0,[-1,-1]),
+                    TraineeCounts.pyComps: (0,[-1,-1]),
+                    TraineeCounts.asmComp: (0,[-1,-1]),
+                    TraineeCounts.capProj: (0,[-1,-1])}
 
-        self.sectionsMax = {'100': 0,
-                       '101': 0,
-                       '200': 0,
-                       '201': 0,
-                       '202': 0,
-                       # '203':0,
-                       '204': 0,
-                       'Debug': 0}  # Same Row as 203
+        self.sectionsMax = {'100': (0,[-1,-1]), #(value and position)
+                       '101': (0,[-1,-1]),
+                       '200': (0,[-1,-1]),
+                       '201': (0,[-1,-1]),
+                       '202': (0,[-1,-1]),
+                       # '203':(0,[-1,-1]),
+                       '204': (0,[-1,-1]),
+                       'Debug': (0,[-1,-1])}  # Same Row as 203
 
 
 
@@ -374,22 +375,22 @@ class TraineeCounts:
 
         for key in self.traineeSections.keys():
 
-            tempCellKey = TraineeCounts.findPositionOfCell(key, self.targetCells)
+            tempCellKey = self.sectionsMax[key][1]
             if tempCellKey[0] == -1:
                 print("%s not found in target sheet." % key)
                 continue
 
             inputVal = self.traineeSections[key] + self.historicSections[key]
 
-            if self.sectionsMax[key] < inputVal:
-                update = input("%s has a new value (%d) greater than max for section %s (%d). Contninue (y/n)?"% (self.name, inputVal, key, self.sectionsMax[key]))
+            if self.sectionsMax[key][0] < inputVal:
+                update = input("%s has a new value (%d) greater than max for section %s (%d). Contninue (y/n)?"% (self.name, inputVal, key, self.sectionsMax[key][0]))
 
             if update.lower() == 'y':
                 TargetSheet.update_cell(nameCellTarget[0], tempCellKey[1], inputVal)
 
         for key in self.traineeComps.keys():
 
-            tempCellKey = TraineeCounts.findPositionOfCell(key, self.targetCells)
+            tempCellKey = self.compsMax[key][1]
 
 
             if tempCellKey[0] == -1:
@@ -398,8 +399,8 @@ class TraineeCounts:
 
             inputVal = self.traineeComps[key] + self.historicalComps[key]
 
-            if self.compsMax[key] < inputVal:
-                update = input("%s has a new value (%d) greater than max for %s (%d). Contninue (y/n)?"%( self.name, inputVal,key, self.compsMax[key]))
+            if self.compsMax[key][0] < inputVal:
+                update = input("%s has a new value (%d) greater than max for %s (%d). Contninue (y/n)?"%( self.name, inputVal,key, self.compsMax[key][0]))
 
             if update.lower() == 'y':
                 TargetSheet.update_cell(nameCellTarget[0], tempCellKey[1], inputVal)
@@ -450,8 +451,12 @@ class TraineeCounts:
             # The following finds the section cell right above the corresposding name row
             if key == 'Debug':
                 tempCell = TraineeCounts.findPositionOfCell('203', reversed(self.targetCells[0:nameCellTarget[0]]))
+                tempCell2 = TraineeCounts.findPositionOfCell('Debug', reversed(self.targetCells[0:nameCellTarget[0]]))
+
+                tempCell = tempCell if tempCell[0]<tempCell2[0] else tempCell2
+
                 if tempCell[0] == -1:
-                    tempCell = TraineeCounts.findPositionOfCell('Debug', reversed(self.targetCells[0:nameCellTarget[0]]))
+                    tempCell = tempCell2
             else:
                 tempCell = TraineeCounts.findPositionOfCell(key, reversed(self.targetCells[0:nameCellTarget[0]]))
 
@@ -461,7 +466,8 @@ class TraineeCounts:
             row = nameCellTarget[0] - tempCell[0] - 1
             value = self.targetCells[row][tempCell[1] - 1]
             try:
-                self.sectionsMax[key] = int(value)
+                self.sectionsMax[key][0] = int(value)
+                self.sectionsMax[key][1] = [row, tempCell[1] - 1]
             except:
                 print("Error finding max value for %s." % key)
 
@@ -475,7 +481,8 @@ class TraineeCounts:
             row = nameCellTarget[0] - tempCell[0] + 1
             value = self.targetCells[row][tempCell[1] - 1]
             try:
-                self.compsMax[key] = int(value)
+                self.compsMax[key][0] = int(value)
+                self.compsMax[key][1] = [row, tempCell[1] - 1]
             except:
                 print("Error finding max value for %s." % key)
 
@@ -492,7 +499,7 @@ class TraineeCounts:
 
     @staticmethod
     def CleanAndLowerStr(string):
-        return ''.join(c.lower() for c in ''.join(string) if c.isalnum())
+        return ''.join(c.lower() for c in ''.join(string) if c.isalnum() or c == '.')
 
 #Functions=============================================================
 '''
@@ -597,7 +604,7 @@ def CreateTableOfVelocities(file=None):
     table.append(
         formatStr.format('NAME', 'LINE ITEM', 'LINE ITEM', 'COMP PROGRESS', 'COMP PROGRESS', 'LINE ITEMS', 'COMPS'))
     table.append(
-        formatStr.format(' ', 'VELOCITY ML', 'VELOCITY AVG', 'VELOCITYM ML', 'VELOCITY AVG', 'COMPLETED', 'COMPLETED'))
+        formatStr.format(' ', 'VELOCITY ML', 'VELOCITY AVG', '% VELOCITYM ML', '% VELOCITY AVG', 'COMPLETED', 'COMPLETED'))
 
     lineVelocities = []
     compVelocities = []
@@ -635,7 +642,7 @@ def CreateTableOfVelocities(file=None):
         numpy.mean(numpy.array(compVelocitiesAVG)),
         numpy.std(numpy.array(compVelocitiesAVG)))
 
-    table = [statString] + table
+    table = [statString] + table + ["\n*ML = Machine Learning Algorihtm Learned Over Desired Time Span\n*AVG = Average Value Over Desired Time Span"]
 
     table = ''.join(table)
 
@@ -872,18 +879,28 @@ def MakePlots():
 
 def UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
                      historicalTrackerSheetName='Historical Training Tracker',
-                     targetSheetName='Training Tracker'):
+                     targetSheetName='Training Tracker',
+                     traineesWanted = "all"):
     selfTrackersheet = RetrieveSpreadSheet(spreadSheetName=selfTrackerSheetName)
     workSheets = selfTrackersheet.worksheets()
 
     # All trainees currently loaded
-    allLoadedTrainees = [trainee.name.lower() for trainee in Trainees]
+    if TraineeCounts.CleanAndLowerStr(traineesWanted) == "all":
+        allLoadedTrainees = [trainee.name.lower() for trainee in Trainees]
+    else:
+        allLoadedTrainees = []
+        for currWorkSheet in workSheets:
+            currName  = currWorkSheet._title
+            if TraineeCounts.CleanAndLowerStr(currName) not in TraineeCounts.CleanAndLowerStr(traineesWanted):
+                allLoadedTrainees.append(currName)  # The title of each worksheet is a trainees name
+
+    allLoadedTrainees = TraineeCounts.CleanAndLowerStr(''.join(allLoadedTrainees))
 
     for currWorkSheet in workSheets:
         # todo check that trainee is in list
-        if currWorkSheet._title.lower() not in allLoadedTrainees and currWorkSheet._title.lower() not in ['blank',
-                                                                                                          'example']:
-            print("Creating Trainee Object For in %s" % currWorkSheet._title.lower())
+        currName = currWorkSheet._title.lower()
+        if currName not in allLoadedTrainees and currName not in ['blank', 'example']:
+            print("Creating Trainee Object for %s" % currWorkSheet._title.lower())
             currTrainee = Trainee(currWorkSheet)
             Trainees.append(currTrainee)
 
@@ -915,6 +932,11 @@ def UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
         tempCounts.UpdateJQRTracker(targetSheet)
 
 def main():
+    UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
+                     historicalTrackerSheetName='Historical Training Tracker',
+                     targetSheetName='Training Tracker.xlsx',
+                     traineesWanted="warner,vaughan")
+    '''
     # Getting the spread sheet from google drive
     global sheet
     sheet = RetrieveSpreadSheet()
@@ -928,9 +950,7 @@ def main():
     updateTracker = input("Would you like to update the JQR tracker (y/n):")
 
     if updateTracker.lower() == 'y':
-        UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
-                         historicalTrackerSheetName='Historical Training Tracker',
-                         targetSheetName='Target Training Tracker')
+        '''
 
 
 
