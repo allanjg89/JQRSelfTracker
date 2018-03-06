@@ -61,7 +61,11 @@ class TraineeRecord:
         if date == '' or date == None:
             date = '1/1/2010'
 
-        self.date = dateutil.parser.parse(date)
+        try:
+            self.date = dateutil.parser.parse(date)
+        except:
+            self.date = datetime.datetime.now()
+            
         self.day = days[self.date.weekday() % 5]
         self.valid = True
         self.section = section
