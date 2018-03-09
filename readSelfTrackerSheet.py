@@ -9,7 +9,7 @@ import difflib
 
 #Globals============================================
 
-debug = True
+debug = False
 
 color_map = ['b', 'g', 'r', 'c', 'm', 'y',  'k', 'w']
 markers =['o',#	circle marker
@@ -232,9 +232,9 @@ class Trainee:
 
 
 class TraineeCounts:
-    validCCompNames = ['C 1', 'C 2', 'C 3', 'C 4']
-    validPyCompNames = ['Py 1', 'Py 2 ', 'P 1', 'P 2 ', 'pyhton 1', 'pyhton 2']
-    validAsmCommpNames = ['Asm 1', 'Asm 2', 'Asm 3', 'A 1', 'A 2', 'A 3', 'assembly 1', 'assembly 2', 'assembly 3']
+    validCCompNames = ['C 1', 'C 2', 'C 3', 'C 4', 'C Comp 1', 'C Comp 2', 'C Comp 3', 'C Comp 4']
+    validPyCompNames = ['Py 1', 'Py 2 ', 'P 1', 'P 2 ', 'pyhton 1', 'pyhton 2', 'Py Comp 1', 'Py Comp 2 ', 'P Comp 1', 'P Comp 2 ', 'pyhton Comp1', 'pyhton Comp 2']
+    validAsmCommpNames = ['Asm 1', 'Asm 2', 'Asm 3', 'A 1', 'A 2', 'A 3', 'assembly 1', 'assembly 2', 'assembly 3', 'Asm Comp 1', 'Asm Comp 2', 'Asm Comp 3', 'A Comp 1', 'A Comp 2', 'A Comp 3', 'assembly Comp 1', 'assembly Comp 2', 'assembly Comp 3']
     validCapNames = ['Cap', 'capstone']
 
     cComps = 'C Comps'
@@ -936,11 +936,8 @@ def UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
         tempCounts.UpdateJQRTracker(targetSheet)
 
 def main():
-    UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
-                     historicalTrackerSheetName='Historical Training Tracker',
-                     targetSheetName='Training Tracker.xlsx',
-                     traineesWanted="warner,vaughan")
-    '''
+
+
     # Getting the spread sheet from google drive
     global sheet
     sheet = RetrieveSpreadSheet()
@@ -954,7 +951,10 @@ def main():
     updateTracker = input("Would you like to update the JQR tracker (y/n):")
 
     if updateTracker.lower() == 'y':
-        '''
+        UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
+                     historicalTrackerSheetName='Historical Training Tracker',
+                     targetSheetName='Training Tracker.xlsx')
+
 
 
 
