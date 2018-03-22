@@ -2,7 +2,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import dateutil.parser
 import datetime
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import numpy
 import os
 import difflib
@@ -41,7 +41,7 @@ desiredLatestDate = None
 workSheets = None
 sheet = None
 minDate = datetime.datetime.now()
-maxDate = datetime.datetime(2015, 1, 1, 0, 0, 0)
+maxDate = datetime.datetime.min
 
 Trainees = []
 daysOfWeekLine = {'m': 0, 'tu': 0, 'w': 0, 'th': 0, 'f': 0} 
@@ -50,12 +50,23 @@ days = ['m', 'tu', 'w', 'th', 'f']
 
 #Classes=======================================================================
 class TraineeRecord:
-    def __init__(self, date, section, numberOfLineItems, compentancy, compentancyPercentage, completedComp = 'n'):
+    '''
+    @brief Constructor for TraineeRecord objects. Populates data from record in Trainee's worksheet.
+    @param date date for record
+    @param section JQR section of interest
+    @param numberOfLineItems number of line items completed on the given date
+    @param competency name of competency the Trainee is currently working on
+    @param competencyPercentage estimated percentage of completion for the current competency
+    @param completedComp 'y' if Trainee completed a competency on this date, 'n' otherwise
+    @return TraineeRecord object
+    '''
+    def __init__(self, date, section, numberOfLineItems, competency, compentencyPercentage, completedComp ='n'):
         #removing all special characters
         #day = ''.join(c for c in day if c.isalnum())
+        # create a string, ignoring special characters
         numberOfLineItems = ''.join(c for c in numberOfLineItems if c.isalnum())
-        compentancy = ''.join(c for c in compentancy if c.isalnum())
-        compentancyPercentage = ''.join(c for c in compentancyPercentage if c.isalnum())
+        competency = ''.join(c for c in competency if c.isalnum())
+        compentencyPercentage = ''.join(c for c in compentencyPercentage if c.isalnum())
         section = ''.join(c for c in section if c.isalnum())
 
         if date == '' or date == None:
@@ -77,10 +88,10 @@ class TraineeRecord:
             self.numberOfLineItems = 0
 
 
-        self.compentancy = compentancy
+        self.compentancy = competency
 
         try:
-            self.compentancyPercentage = int(compentancyPercentage)
+            self.compentancyPercentage = int(compentencyPercentage)
         except:
             self.compentancyPercentage = 0
 
@@ -89,6 +100,11 @@ class TraineeRecord:
               self.date.strftime('%m/%d/%Y'), self.day, self.section, self.numberOfLineItems, self.compentancy, self.compentancyPercentage, self.completedComp)
 
 class Trainee:
+    '''
+    @brief Constructor for Trainee class
+    @param worksheet worksheet for a given trainee
+    @return Trainee object populated with data from the worksheet
+    '''
     def __init__(self, worksheet):
         self.name = worksheet._title
         self.lineVel = 0
@@ -103,6 +119,7 @@ class Trainee:
         self.averageLineVel = 0
         self.averageCompVel = 0
 
+        # get all values in each column (ignoring first item - name of column)
         dates = worksheet.col_values(1)[1:-1]
         #days = worksheet.col_values(2)[1:-1]
         sections = worksheet.col_values(3)[1:-1]
@@ -113,6 +130,7 @@ class Trainee:
 
         index = 0
         self.records = []
+        # iterate through each record in worksheet, get statistics on line items, comps, etc.
         for date in dates:
 
             if date != None and date != '' and  date != ' ':
@@ -144,6 +162,9 @@ class Trainee:
     def setCompVel(self, compVel):
         self.compVel = compVel
 
+    '''
+    @brief Compute the velocity of Trainee's line item completion over the valid dates using numpy's linear regression library. 
+    '''
     def computeLineItemVel(self):
 
         if self.numRecords<2:
@@ -166,6 +187,10 @@ class Trainee:
         self.lineIntercpt = coeff[1]
         return dates, lineItems, xvals
 
+    '''
+    @brief Compute the velocity of Trainee's competency completion over the valid dates using numpy's linear regression 
+    library.
+    '''
     def computeCompVel(self):
         if self.numRecords<2:
             print("%s lacks sufficient records to do regression.",self.name)
@@ -187,21 +212,30 @@ class Trainee:
         self.compIntercept = coeff[1]
         return dates, compPercentages, xvals
 
+    '''
+    @brief Set TraineeRecord objects as Valid or Invalid based on whether record's date falls in provided date range
+    @param lowerDate earliest date to be included
+    @param upperDate latest date to be included
+    '''
     def FilterTrainee(self, lowerDate, upperDate):
 
+        """
         if upperDate >= self.maxDate and lowerDate <= self.minDate:
             return
 
-        if lowerDate > self.minDate:
+        if lowerDate < self.minDate:
             self.minDate = lowerDate
-        if upperDate < self.maxDate:
+        if upperDate > self.maxDate:
             self.maxDate = upperDate
-
-        # filteredRecords = []
+        """
 
         for record in self.records:
             if record.date <= upperDate and record.date >= lowerDate:
                 record.valid = True
+                if record.date < self.minDate:
+                    self.minDate = record.date
+                if record.date > self.maxDate:
+                    self.maxDate = record.date
             else:
                 self.numRecords = self.numRecords - 1
                 record.valid = False
@@ -209,6 +243,9 @@ class Trainee:
                 if record.completedComp.lower() == 'y':
                     self.numberOfCompsCompleted = self.numberOfCompsCompleted - 1
 
+    '''
+    @brief Set all TraineeRecord objects to Valid. This has the effect of removing applied date filters.
+    '''
     def ResetRecords(self):
         for record in self.records:
             record.valid = True
@@ -217,6 +254,12 @@ class Trainee:
             if record.date > self.maxDate:
                 self.maxDate = record.date
 
+    '''
+    @brief Static method to create a dictionary from a list of keys and values such that the values for corresponding
+    keys are cumulative.
+    @param keys list of keys
+    @param values list of values
+    '''
     @staticmethod
     def __ConsolidateIntoUniqueDict(keys,values):
         retDict = {}
@@ -230,7 +273,8 @@ class Trainee:
 
         return retDict
 
-
+# TODO update TraineeCounts for new JQR
+# TODO account for Basic vs Apprentice
 class TraineeCounts:
     validCCompNames = ['C 1', 'C 2', 'C 3', 'C 4', 'C Comp 1', 'C Comp 2', 'C Comp 3', 'C Comp 4']
     validPyCompNames = ['Py 1', 'Py 2 ', 'P 1', 'P 2 ', 'pyhton 1', 'pyhton 2', 'Py Comp 1', 'Py Comp 2 ', 'P Comp 1', 'P Comp 2 ', 'pyhton Comp1', 'pyhton Comp 2']
@@ -242,6 +286,9 @@ class TraineeCounts:
     asmComp = 'Assembly \nComps'
     capProj = 'Capstone \nProject'
 
+    '''
+    
+    '''
     def __init__(self, Trainee, HistoricSheet=None):
         self.name = Trainee.name
 
@@ -255,6 +302,7 @@ class TraineeCounts:
                                 TraineeCounts.asmComp: 0,
                                 TraineeCounts.capProj: 0}
 
+        # TODO update these for new JQR
         self.traineeSections = {'100': 0,
                                 '101': 0,
                                 '200': 0,
@@ -273,11 +321,15 @@ class TraineeCounts:
                                  '204': 0,
                                  'Debug': 0}  # Same column as 203
 
+        # first value is max number of comps for the programming language
+        # the following pair of values are the row and column values where that max value is located
+        # these values are populated dynamically by searching the target spreadsheet
         self.compsMax = {TraineeCounts.cComps: [0,[-1,-1]],
                     TraineeCounts.pyComps: [0,[-1,-1]],
                     TraineeCounts.asmComp: [0,[-1,-1]],
                     TraineeCounts.capProj: [0,[-1,-1]]}
 
+        # similar to compsMax, but regarding line items per section
         self.sectionsMax = {'100': [0,[-1,-1]], #(value and position)
                        '101': [0,[-1,-1]],
                        '200': [0,[-1,-1]],
@@ -299,7 +351,9 @@ class TraineeCounts:
 
 
             try:
+                # get closest match to the section entered in the self tracker
                 section = difflib.get_close_matches(record.section, self.sections)[0]
+                # add the number of line items completed in the given record to the total
                 self.traineeSections[section] = self.traineeSections[section] + record.numberOfLineItems
             except:
                 if record.section != '' and record.section != None and record.section != ' ' \
@@ -330,7 +384,13 @@ class TraineeCounts:
 
         return None
 
+    '''
+    @brief Update the values in the dictionary if they exist in the given sheet
+    @param sheet worksheet to search for values
+    @param dictionary containing keys to search for and values populate
+    '''
     def UpdateHistoricCounts(self, sheet, dictionary):
+        # find Trainee's name in historical cells
         nameCellHistorical = TraineeCounts.findPositionOfCell(self.name, self.historicCells)
 
         if nameCellHistorical[0] == -1:
@@ -341,13 +401,14 @@ class TraineeCounts:
         tempCellVal = None
 
         for key in dictionary.keys():
-
+            # find key (either sections or comps) in the historic cells
             tempCellKey = TraineeCounts.findPositionOfCell(key, self.historicCells)
 
             if tempCellKey[0] == -1:
                 print("%s not found in historic sheet." % key)
                 continue
 
+            # use the row of the Trainee's name, and the column of the key to find the desired value
             tempCellVal = sheet.cell(nameCellHistorical[0], tempCellKey[1])
             value = ''.join(c for c in tempCellVal.value if c.isalnum())
             # print("key: %s\tvalue: %s"%(key,tempCellVal.value))
@@ -360,6 +421,9 @@ class TraineeCounts:
         self.UpdateHistoricCounts(sheet, self.historicSections)
         self.UpdateHistoricCounts(sheet, self.historicalComps)
 
+    '''
+    
+    '''
     def UpdateJQRTracker(self, TargetSheet):
 
 
@@ -409,14 +473,19 @@ class TraineeCounts:
             if update.lower() == 'y':
                 TargetSheet.update_cell(nameCellTarget[0], tempCellKey[1], inputVal)
 
-
+    '''
+    @brief Search the given cells for one that contains the given value
+    @param value value to search for
+    @brief cells list of records to search
+    @return tuple of (row, column) indexes 
+    '''
     @staticmethod
     def findPositionOfCell(value, cells):
         row = 0
         col = 0
-        for l in cells:
+        for list in cells:
             col = 0
-            for val in l:
+            for val in list:
                 if TraineeCounts.CleanAndLowerStr(value) == TraineeCounts.CleanAndLowerStr(val):
                     return (row + 1, col + 1)
                 col = col + 1
@@ -424,6 +493,10 @@ class TraineeCounts:
 
         return (-1, -1)
 
+    '''
+    Attempt to match comp name entered by Trainee with valid comp name and return corresponding string found 
+    in training tracker
+    '''
     def __CurrComp(self, record):
 
         comp = TraineeCounts.CleanAndLowerStr(record.compentancy)
@@ -500,7 +573,9 @@ class TraineeCounts:
             value = self.targetCells[row][tempCell[1]-1]
             dictionary[key] = int(value)
 
-
+    '''
+    @brief Static method to remove special characters from strings (excluding period), and make it lowercase
+    '''
     @staticmethod
     def CleanAndLowerStr(string):
         return ''.join(c.lower() for c in ''.join(string) if c.isalnum() or c == '.')
@@ -509,7 +584,7 @@ class TraineeCounts:
 '''
 @fn RetrieveSpreadSheet(jsonFile, spreadSheetName)
 @brief Function to open a spreadsheet from the google server
-@param jsonFile name of the .jsonFile key to access the google drive file
+@param jsonFile name of the .jsonFile authentication key to access the google drive file
 @param spreadSheetName name of the spreadsheet to be opened
 @return returns google spreadsheet object from the gspread API
 '''
@@ -550,7 +625,13 @@ def sumList(myList):
 
     return retList
 
-
+'''
+@brief Plot line item velocity for the given Trainee
+@param figure figure on which to plot the line item velocity
+@param trainee trainee of interest
+@param color color of the line and marker (data points)
+@param marker shape of marker
+'''
 def PlotLineVelocity(figure, trainee, color, marker):
     plt.figure(figure.number)
 
@@ -568,7 +649,13 @@ def PlotLineVelocity(figure, trainee, color, marker):
 
     #return slopeintercept
 
-
+'''
+@brief Plot competency completion velocity for the given Trainee
+@param figure figure on which to plot the line item velocity
+@param trainee trainee of interest
+@param color color of the line and marker (data points)
+@param marker shape of marker
+'''
 def PlotCompVelocity(figure, trainee, color, marker):
     plt.figure(figure.number)
 
@@ -597,7 +684,10 @@ def GetLatestComp(trainee):
 
     return None
 
-
+'''
+@brief Create a table displaying Trainees and their line item and competency completion velocities
+@param file name of file to which table will be written
+'''
 def CreateTableOfVelocities(file=None):
     global Trainees
 
@@ -657,6 +747,10 @@ def CreateTableOfVelocities(file=None):
         f.write(table)
         f.close()
 
+'''
+@brief Create a table displaying cumulative number of line items completed, and another displaying cumulative 
+estimated percentage of competency completion within hte min and max dates
+'''
 def CreateDayOfWeekDistributions():
     global days
     global minDate
@@ -787,7 +881,10 @@ def GetListOfTraineeObjects(sheet):
         print("No trainees selected or could be found from those desired.")
         exit(-1)
 
-
+'''
+@brief Filter all Trainee objects by the desired dates in the global desiredEarliestDate and desiredLatestDate 
+variables
+'''
 def FilterTraineesDateRanges():
     global Trainees
     global minDate
@@ -808,7 +905,9 @@ def FilterTraineesDateRanges():
 
     #trainee.records = filteredRecords
 
-
+'''
+@brief Plot the competency and line item completion velocities for all Trainees 
+'''
 def MakePlots():
     # ============================================================================================
     # Below we are both filtering the data according to desired date range and also creating plots
@@ -881,6 +980,13 @@ def MakePlots():
     plt.xticks(range(minx, maxx), [mindate + datetime.timedelta(days=count) for count in range(maxx - minx)])
     plt.locator_params(axis='x', nbins=10)
 
+'''
+
+@param selfTrackerSheetName name of Google spreadsheet that Trainees update daily
+@param historicalTrackerSheetName name of Google spreadsheet holding historical data for compatibility
+@param targetSheetname name of Google spreadsheet given to command leadership
+@param traineesWanted list of trainees whose summary will be updated in the target spreadsheet
+'''
 def UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
                      historicalTrackerSheetName='Historical Training Tracker',
                      targetSheetName='Training Tracker',
@@ -898,8 +1004,10 @@ def UpdateJQRTracker(selfTrackerSheetName='JQR Self Progress',
             if TraineeCounts.CleanAndLowerStr(currName) not in TraineeCounts.CleanAndLowerStr(traineesWanted):
                 allLoadedTrainees.append(currName)  # The title of each worksheet is a trainees name
 
+    # put all Trainee names into one string
     allLoadedTrainees = TraineeCounts.CleanAndLowerStr(''.join(allLoadedTrainees))
 
+    # create Trainee objects if they do not already exist
     for currWorkSheet in workSheets:
         # todo check that trainee is in list
         currName = currWorkSheet._title.lower()
