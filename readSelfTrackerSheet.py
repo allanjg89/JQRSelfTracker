@@ -422,7 +422,9 @@ class TraineeCounts:
         self.UpdateHistoricCounts(sheet, self.historicalComps)
 
     '''
-    
+    @brief Update all section line item counts and competency completion counts for this Trainee in the 
+    target spreadsheet
+    @param TargetSheet spreadsheet to be updated
     '''
     def UpdateJQRTracker(self, TargetSheet):
 
@@ -474,7 +476,7 @@ class TraineeCounts:
                 TargetSheet.update_cell(nameCellTarget[0], tempCellKey[1], inputVal)
 
     '''
-    @brief Search the given cells for one that contains the given value
+    @brief Search the given cells and return the first occurrence of the given value
     @param value value to search for
     @brief cells list of records to search
     @return tuple of (row, column) indexes 
@@ -520,13 +522,19 @@ class TraineeCounts:
         print('%s is an invalid comp name. Best guess is: %s' % record.compentancy, bestGuess)
         return bestGuess
 
-
+    '''
+    @brief Find the max values for each section and comp, and assign them to this object's attribute variables
+    @nameCellTarget tuple of (row, col) for location of Trainee's name
+    '''
     def __FindMaxVals(self, nameCellTarget):
 
 
         for key in self.sectionsMax.keys():
-            # The following finds the section cell right above the corresposding name row
+            # The following finds the section cell right above the corresponding name row
             if key == 'Debug':
+                # search from location of name upwards
+                # this is done by slicing the list of lists from the first index to the occurrence of the name and
+                # reversing the rows
                 tempCell = TraineeCounts.findPositionOfCell('203', reversed(self.targetCells[0:nameCellTarget[0]]))
                 tempCell2 = TraineeCounts.findPositionOfCell('Debug', reversed(self.targetCells[0:nameCellTarget[0]]))
 
@@ -540,15 +548,17 @@ class TraineeCounts:
             if tempCell[0] == -1:
                 print("Could not find key %s."%key)
                 continue
+            # necessary to translate reversed list position back to regular coordinate index
             row = nameCellTarget[0] - tempCell[0] - 1
             value = self.targetCells[row][tempCell[1] - 1]
             try:
+                # update max section values and the row and column where the value was found
                 self.sectionsMax[key][0] = int(value)
                 self.sectionsMax[key][1] = [row, tempCell[1]]
             except:
                 print("Error finding max value for %s." % key)
 
-
+        # this loop repeats the same process as above, but for the comps
         for key in self.compsMax.keys():
             # The following finds the section cell right above the corresposding name row
             tempCell = TraineeCounts.findPositionOfCell(key, reversed(self.targetCells[0:nameCellTarget[0]]))
